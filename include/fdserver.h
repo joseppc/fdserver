@@ -21,15 +21,15 @@ extern "C" {
  * unrelated fd server users do not have to guarantee key unicity between
  * them.
  */
-typedef enum fd_server_context {
+typedef enum fdserver_context {
 	FD_SRV_CTX_NA,  /* Not Applicable   */
 	FD_SRV_CTX_ISHM,
 	FD_SRV_CTX_END, /* upper enum limit */
-} fd_server_context_e;
+} fdserver_context_e;
 
-int fdserver_register_fd(fd_server_context_e context, uint64_t key, int fd);
-int fdserver_deregister_fd(fd_server_context_e context, uint64_t key);
-int fdserver_lookup_fd(fd_server_context_e context, uint64_t key);
+int fdserver_register_fd(fdserver_context_e context, uint64_t key, int fd);
+int fdserver_deregister_fd(fdserver_context_e context, uint64_t key);
+int fdserver_lookup_fd(fdserver_context_e context, uint64_t key);
 
 #ifdef __cplusplus
 }

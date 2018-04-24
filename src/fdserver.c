@@ -54,185 +54,7 @@
 
 #include <fdserver.h>
 #include <odp_adapt.h>
-
-#define FDSERVER_SOCKPATH_MAXLEN 255
-#define FDSERVER_SOCK_FORMAT "%s/%s/odp-%d-fdserver"
-#define FDSERVER_SOCKDIR_FORMAT "%s/%s"
-#define FDSERVER_DEFAULT_DIR "/dev/shm"
-#define FDSERVER_BACKLOG 5
-
-#ifndef MAP_ANONYMOUS
-#define MAP_ANONYMOUS MAP_ANON
-#endif
-
-#define FD_ODP_DEBUG_PRINT 0
-
-#define FD_ODP_DBG(fmt, ...) \
-	do { \
-		if (FD_ODP_DEBUG_PRINT == 1) \
-			ODP_DBG(fmt, ##__VA_ARGS__);\
-	} while (0)
-
-/* define the tables of file descriptors handled by this server: */
-#define FDSERVER_MAX_ENTRIES 256
-typedef struct fdentry_s {
-	fd_server_context_e context;
-	uint64_t key;
-	int  fd;
-} fdentry_t;
-static fdentry_t *fd_table;
-static int fd_table_nb_entries;
-
-/*
- * define the message struct used for communication between client and server
- * (this single message is used in both direction)
- * The file descriptors are sent out of band as ancillary data for conversion.
- */
-typedef struct fd_server_msg {
-	int command;
-	fd_server_context_e context;
-	uint64_t key;
-} fdserver_msg_t;
-/* possible commands are: */
-#define FD_REGISTER_REQ		1  /* client -> server */
-#define FD_REGISTER_ACK		2  /* server -> client */
-#define FD_REGISTER_NACK	3  /* server -> client */
-#define FD_LOOKUP_REQ		4  /* client -> server */
-#define FD_LOOKUP_ACK		5  /* server -> client */
-#define FD_LOOKUP_NACK		6  /* server -> client */
-#define FD_DEREGISTER_REQ	7  /* client -> server */
-#define FD_DEREGISTER_ACK	8  /* server -> client */
-#define FD_DEREGISTER_NACK	9  /* server -> client */
-#define FD_SERVERSTOP_REQ	10 /* client -> server (stops) */
-
-/*
- * Client and server function:
- * Send a fdserver_msg, possibly including a file descriptor, on the socket
- * This function is used both by:
- * -the client (sending a FD_REGISTER_REQ with a file descriptor to be shared,
- *  or FD_LOOKUP_REQ/FD_DEREGISTER_REQ without a file descriptor)
- * -the server (sending FD_REGISTER_ACK/NACK, FD_LOOKUP_NACK,
- *  FD_DEREGISTER_ACK/NACK... without a fd or a
- *  FD_LOOKUP_ACK with a fd)
- * This function make use of the ancillary data (control data) to pass and
- * convert file descriptors over UNIX sockets
- * Return -1 on error, 0 on success.
- */
-static int send_fdserver_msg(int sock, int command,
-			     fd_server_context_e context, uint64_t key,
-			     int fd_to_send)
-{
-	struct msghdr socket_message;
-	struct iovec io_vector[1]; /* one msg frgmt only */
-	struct cmsghdr *control_message = NULL;
-	int *fd_location;
-	fdserver_msg_t msg;
-	int res;
-
-	char ancillary_data[CMSG_SPACE(sizeof(int))];
-
-	/* prepare the register request body (single framgent): */
-	msg.command = command;
-	msg.context = context;
-	msg.key = key;
-	io_vector[0].iov_base = &msg;
-	io_vector[0].iov_len = sizeof(fdserver_msg_t);
-
-	/* initialize socket message */
-	memset(&socket_message, 0, sizeof(struct msghdr));
-	socket_message.msg_iov = io_vector;
-	socket_message.msg_iovlen = 1;
-
-	if (fd_to_send >= 0) {
-		/* provide space for the ancillary data */
-		memset(ancillary_data, 0, CMSG_SPACE(sizeof(int)));
-		socket_message.msg_control = ancillary_data;
-		socket_message.msg_controllen = CMSG_SPACE(sizeof(int));
-
-		/* initialize a single ancillary data element for fd passing */
-		control_message = CMSG_FIRSTHDR(&socket_message);
-		control_message->cmsg_level = SOL_SOCKET;
-		control_message->cmsg_type = SCM_RIGHTS;
-		control_message->cmsg_len = CMSG_LEN(sizeof(int));
-		fd_location = (int *)(void *)CMSG_DATA(control_message);
-		*fd_location = fd_to_send;
-	}
-	res = sendmsg(sock, &socket_message, 0);
-	if (res < 0) {
-		ODP_ERR("send_fdserver_msg: %s\n", strerror(errno));
-		return -1;
-	}
-
-	return 0;
-}
-
-/*
- * Client and server function
- * Receive a fdserver_msg, possibly including a file descriptor, on the
- * given socket.
- * This function is used both by:
- * -the server (receiving a FD_REGISTER_REQ with a file descriptor to be shared,
- *  or FD_LOOKUP_REQ, FD_DEREGISTER_REQ without a file descriptor)
- * -the client (receiving FD_REGISTER_ACK...without a fd or a FD_LOOKUP_ACK with
- * a fd)
- * This function make use of the ancillary data (control data) to pass and
- * convert file descriptors over UNIX sockets.
- * Return -1 on error, 0 on success.
- */
-static int recv_fdserver_msg(int sock, int *command,
-			     fd_server_context_e *context, uint64_t *key,
-			     int *recvd_fd)
-{
-	struct msghdr socket_message;
-	struct iovec io_vector[1]; /* one msg frgmt only */
-	struct cmsghdr *control_message = NULL;
-	int *fd_location;
-	fdserver_msg_t msg;
-	char ancillary_data[CMSG_SPACE(sizeof(int))];
-
-	memset(&socket_message, 0, sizeof(struct msghdr));
-	memset(ancillary_data, 0, CMSG_SPACE(sizeof(int)));
-
-	/* setup a place to fill in message contents */
-	io_vector[0].iov_base = &msg;
-	io_vector[0].iov_len = sizeof(fdserver_msg_t);
-	socket_message.msg_iov = io_vector;
-	socket_message.msg_iovlen = 1;
-
-	/* provide space for the ancillary data */
-	socket_message.msg_control = ancillary_data;
-	socket_message.msg_controllen = CMSG_SPACE(sizeof(int));
-
-	/* receive the message */
-	if (recvmsg(sock, &socket_message, MSG_CMSG_CLOEXEC) < 0) {
-		ODP_ERR("recv_fdserver_msg: %s\n", strerror(errno));
-		return -1;
-	}
-
-	*command = msg.command;
-	*context = msg.context;
-	*key = msg.key;
-
-	/* grab the converted file descriptor (if any) */
-	*recvd_fd = -1;
-
-	if ((socket_message.msg_flags & MSG_CTRUNC) == MSG_CTRUNC)
-		return 0;
-
-	/* iterate ancillary elements to find the file descriptor: */
-	for (control_message = CMSG_FIRSTHDR(&socket_message);
-	     control_message != NULL;
-	     control_message = CMSG_NXTHDR(&socket_message, control_message)) {
-		if ((control_message->cmsg_level == SOL_SOCKET) &&
-		    (control_message->cmsg_type == SCM_RIGHTS)) {
-			fd_location = (int *)(void *)CMSG_DATA(control_message);
-			*recvd_fd = *fd_location;
-			break;
-		}
-	}
-
-	return 0;
-}
+#include <fdserver_internal.h>
 
 /* opens and returns a connected socket to the server */
 static int get_socket(void)
@@ -266,7 +88,7 @@ static int get_socket(void)
  * Client function:
  * Register a file descriptor to the server. Return -1 on error.
  */
-int _odp_fdserver_register_fd(fd_server_context_e context, uint64_t key,
+int _odp_fdserver_register_fd(fdserver_context_e context, uint64_t key,
 			      int fd_to_send)
 {
 	int s_sock; /* server socket */
@@ -281,15 +103,15 @@ int _odp_fdserver_register_fd(fd_server_context_e context, uint64_t key,
 	if (s_sock < 0)
 		return -1;
 
-	res =  send_fdserver_msg(s_sock, FD_REGISTER_REQ, context, key,
-				 fd_to_send);
+	res =  fdserver_internal_send_msg(s_sock, FD_REGISTER_REQ, context, key,
+					  fd_to_send);
 	if (res < 0) {
 		ODP_ERR("fd registration failure\n");
 		close(s_sock);
 		return -1;
 	}
 
-	res = recv_fdserver_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
 
 	if ((res < 0) || (command != FD_REGISTER_ACK)) {
 		ODP_ERR("fd registration failure\n");
@@ -306,7 +128,7 @@ int _odp_fdserver_register_fd(fd_server_context_e context, uint64_t key,
  * Client function:
  * Deregister a file descriptor from the server. Return -1 on error.
  */
-int _odp_fdserver_deregister_fd(fd_server_context_e context, uint64_t key)
+int _odp_fdserver_deregister_fd(fdserver_context_e context, uint64_t key)
 {
 	int s_sock; /* server socket */
 	int res;
@@ -320,14 +142,15 @@ int _odp_fdserver_deregister_fd(fd_server_context_e context, uint64_t key)
 	if (s_sock < 0)
 		return -1;
 
-	res =  send_fdserver_msg(s_sock, FD_DEREGISTER_REQ, context, key, -1);
+	res =  fdserver_internal_send_msg(s_sock, FD_DEREGISTER_REQ, context,
+					  key, -1);
 	if (res < 0) {
 		ODP_ERR("fd de-registration failure\n");
 		close(s_sock);
 		return -1;
 	}
 
-	res = recv_fdserver_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
 
 	if ((res < 0) || (command != FD_DEREGISTER_ACK)) {
 		ODP_ERR("fd de-registration failure\n");
@@ -345,7 +168,7 @@ int _odp_fdserver_deregister_fd(fd_server_context_e context, uint64_t key)
  * lookup a file descriptor from the server. return -1 on error,
  * or the file descriptor on success (>=0).
  */
-int _odp_fdserver_lookup_fd(fd_server_context_e context, uint64_t key)
+int _odp_fdserver_lookup_fd(fdserver_context_e context, uint64_t key)
 {
 	int s_sock; /* server socket */
 	int res;
@@ -356,14 +179,15 @@ int _odp_fdserver_lookup_fd(fd_server_context_e context, uint64_t key)
 	if (s_sock < 0)
 		return -1;
 
-	res =  send_fdserver_msg(s_sock, FD_LOOKUP_REQ, context, key, -1);
+	res =  fdserver_internal_send_msg(s_sock, FD_LOOKUP_REQ, context,
+					  key, -1);
 	if (res < 0) {
 		ODP_ERR("fd lookup failure\n");
 		close(s_sock);
 		return -1;
 	}
 
-	res = recv_fdserver_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
 
 	if ((res < 0) || (command != FD_LOOKUP_ACK)) {
 		ODP_ERR("fd lookup failure\n");
@@ -392,7 +216,7 @@ static int stop_server(void)
 	if (s_sock < 0)
 		return -1;
 
-	res =  send_fdserver_msg(s_sock, FD_SERVERSTOP_REQ, 0, 0, -1);
+	res =  fdserver_internal_send_msg(s_sock, FD_SERVERSTOP_REQ, 0, 0, -1);
 	if (res < 0) {
 		ODP_ERR("fd stop request failure\n");
 		close(s_sock);
@@ -412,19 +236,20 @@ static int stop_server(void)
 static int handle_request(int client_sock)
 {
 	int command;
-	fd_server_context_e context;
+	fdserver_context_e context;
 	uint64_t key;
 	int fd;
 	int i;
 
 	/* get a client request: */
-	recv_fdserver_msg(client_sock, &command, &context, &key, &fd);
+	fdserver_internal_recv_msg(client_sock, &command, &context, &key, &fd);
 	switch (command) {
 	case FD_REGISTER_REQ:
 		if ((fd < 0) || (context >= FD_SRV_CTX_END)) {
 			ODP_ERR("Invalid register fd or context\n");
-			send_fdserver_msg(client_sock, FD_REGISTER_NACK,
-					  FD_SRV_CTX_NA, 0, -1);
+			fdserver_internal_send_msg(client_sock,
+						   FD_REGISTER_NACK,
+						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
 
@@ -437,20 +262,21 @@ static int handle_request(int client_sock)
 				   context, key, fd);
 		} else {
 			ODP_ERR("FD table full\n");
-			send_fdserver_msg(client_sock, FD_REGISTER_NACK,
-					  FD_SRV_CTX_NA, 0, -1);
+			fdserver_internal_send_msg(client_sock,
+						   FD_REGISTER_NACK,
+						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
 
-		send_fdserver_msg(client_sock, FD_REGISTER_ACK,
-				  FD_SRV_CTX_NA, 0, -1);
+		fdserver_internal_send_msg(client_sock, FD_REGISTER_ACK,
+					   FD_SRV_CTX_NA, 0, -1);
 		break;
 
 	case FD_LOOKUP_REQ:
 		if (context >= FD_SRV_CTX_END) {
 			ODP_ERR("invalid lookup context\n");
-			send_fdserver_msg(client_sock, FD_LOOKUP_NACK,
-					  FD_SRV_CTX_NA, 0, -1);
+			fdserver_internal_send_msg(client_sock, FD_LOOKUP_NACK,
+						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
 
@@ -462,23 +288,25 @@ static int handle_request(int client_sock)
 				ODP_DBG("lookup {ctx=%d,"
 					" key=%" PRIu64 "}->fd=%d\n",
 					context, key, fd);
-				send_fdserver_msg(client_sock,
-						  FD_LOOKUP_ACK, context, key,
-						  fd);
+				fdserver_internal_send_msg(client_sock,
+							   FD_LOOKUP_ACK,
+							   context, key,
+							   fd);
 				return 0;
 			}
 		}
 
 		/* context+key not found... send nack */
-		send_fdserver_msg(client_sock, FD_LOOKUP_NACK, context, key,
-				  -1);
+		fdserver_internal_send_msg(client_sock, FD_LOOKUP_NACK, context,
+					   key, -1);
 		break;
 
 	case FD_DEREGISTER_REQ:
 		if (context >= FD_SRV_CTX_END) {
 			ODP_ERR("invalid deregister context\n");
-			send_fdserver_msg(client_sock, FD_DEREGISTER_NACK,
-					  FD_SRV_CTX_NA, 0, -1);
+			fdserver_internal_send_msg(client_sock,
+						   FD_DEREGISTER_NACK,
+						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
 
@@ -491,16 +319,16 @@ static int handle_request(int client_sock)
 					   context, key, fd_table[i].fd);
 				close(fd_table[i].fd);
 				fd_table[i] = fd_table[--fd_table_nb_entries];
-				send_fdserver_msg(client_sock,
-						  FD_DEREGISTER_ACK,
-						  context, key, -1);
+				fdserver_internal_send_msg(client_sock,
+							   FD_DEREGISTER_ACK,
+							   context, key, -1);
 				return 0;
 			}
 		}
 
 		/* key not found... send nack */
-		send_fdserver_msg(client_sock, FD_DEREGISTER_NACK,
-				  context, key, -1);
+		fdserver_internal_send_msg(client_sock, FD_DEREGISTER_NACK,
+					   context, key, -1);
 		break;
 
 	case FD_SERVERSTOP_REQ:

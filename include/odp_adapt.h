@@ -9,6 +9,6 @@
 #define ODP_DBG(...) \
 	fprintf(stderr, __VA_ARGS__)
 
-const char * const fdserver_path = "/tmp/fdserver_socket";
+extern const char * const fdserver_path;
 
 #endif
