@@ -6,3 +6,4 @@ fdserver: src/fdserver.c src/fdserver_common.c
 
 clean:
 	rm -f fdserver
+	make -C examples clean
