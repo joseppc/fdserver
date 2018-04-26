@@ -202,3 +202,23 @@ int fdserver_lookup_fd(fdserver_context_e context, uint64_t key)
 	return fd;
 }
 
+int fdserver_terminate(fdserver_context_e context)
+{
+	int s_sock; /* server socket */
+	int res;
+
+	s_sock = get_socket();
+	if (s_sock < 0)
+		return -1;
+
+	res =  fdserver_internal_send_msg(s_sock, FD_SERVERSTOP_REQ, context,
+					  0, -1);
+	close(s_sock);
+
+	if (res < 0) {
+		ODP_ERR("fd lookup failure\n");
+		return -1;
+	}
+
+	return 0;
+}

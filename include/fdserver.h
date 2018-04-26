@@ -32,6 +32,7 @@ typedef enum fdserver_context {
 int fdserver_register_fd(fdserver_context_e context, uint64_t key, int fd);
 int fdserver_deregister_fd(fdserver_context_e context, uint64_t key);
 int fdserver_lookup_fd(fdserver_context_e context, uint64_t key);
+int fdserver_terminate(fdserver_context_e context);
 
 #ifdef __cplusplus
 }
