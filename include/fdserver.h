@@ -11,6 +11,8 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
+
 /*
  * the following enum defines the different contextes by which the
  * FD server may be used: In the FD server, the keys used to store/retrieve
