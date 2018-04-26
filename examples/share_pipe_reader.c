@@ -49,6 +49,8 @@ int main(int argc, char *argv[])
 
 	close(fd[0]);
 
+	fdserver_terminate(FD_SRV_CTX_ISHM);
+
 	exit(EXIT_SUCCESS);
 }
 
