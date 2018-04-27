@@ -93,7 +93,7 @@ int fdserver_register_fd(fdserver_context_e context, uint64_t key,
 {
 	int s_sock; /* server socket */
 	int res;
-	int command;
+	int retval;
 	int fd;
 
 	FD_ODP_DBG("FD client register: pid=%d key=%" PRIu64 ", fd=%d\n",
@@ -111,9 +111,9 @@ int fdserver_register_fd(fdserver_context_e context, uint64_t key,
 		return -1;
 	}
 
-	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
 
-	if ((res < 0) || (command != FD_REGISTER_ACK)) {
+	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
 		ODP_ERR("fd registration failure\n");
 		close(s_sock);
 		return -1;
@@ -132,7 +132,7 @@ int fdserver_deregister_fd(fdserver_context_e context, uint64_t key)
 {
 	int s_sock; /* server socket */
 	int res;
-	int command;
+	int retval;
 	int fd;
 
 	FD_ODP_DBG("FD client deregister: pid=%d key=%" PRIu64 "\n",
@@ -150,9 +150,9 @@ int fdserver_deregister_fd(fdserver_context_e context, uint64_t key)
 		return -1;
 	}
 
-	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
 
-	if ((res < 0) || (command != FD_DEREGISTER_ACK)) {
+	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
 		ODP_ERR("fd de-registration failure\n");
 		close(s_sock);
 		return -1;
@@ -172,7 +172,7 @@ int fdserver_lookup_fd(fdserver_context_e context, uint64_t key)
 {
 	int s_sock; /* server socket */
 	int res;
-	int command;
+	int retval;
 	int fd;
 
 	s_sock = get_socket();
@@ -187,9 +187,9 @@ int fdserver_lookup_fd(fdserver_context_e context, uint64_t key)
 		return -1;
 	}
 
-	res = fdserver_internal_recv_msg(s_sock, &command, &context, &key, &fd);
+	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
 
-	if ((res < 0) || (command != FD_LOOKUP_ACK)) {
+	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
 		ODP_ERR("fd lookup failure\n");
 		close(s_sock);
 		return -1;

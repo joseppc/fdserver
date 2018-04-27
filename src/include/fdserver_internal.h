@@ -34,21 +34,22 @@ static int fd_table_nb_entries;
  * The file descriptors are sent out of band as ancillary data for conversion.
  */
 typedef struct fd_server_msg {
-	int command;
+	union {
+		int command;
+		int retval;
+	};
 	fdserver_context_e context;
 	uint64_t key;
 } fdserver_msg_t;
 /* possible commands are: */
-#define FD_REGISTER_REQ		1  /* client -> server */
-#define FD_REGISTER_ACK		2  /* server -> client */
-#define FD_REGISTER_NACK	3  /* server -> client */
-#define FD_LOOKUP_REQ		4  /* client -> server */
-#define FD_LOOKUP_ACK		5  /* server -> client */
-#define FD_LOOKUP_NACK		6  /* server -> client */
-#define FD_DEREGISTER_REQ	7  /* client -> server */
-#define FD_DEREGISTER_ACK	8  /* server -> client */
-#define FD_DEREGISTER_NACK	9  /* server -> client */
-#define FD_SERVERSTOP_REQ	10 /* client -> server (stops) */
+#define FD_REGISTER_REQ		1 /* client -> server */
+#define FD_LOOKUP_REQ		2 /* client -> server */
+#define FD_DEREGISTER_REQ	3 /* client -> server */
+#define FD_SERVERSTOP_REQ	4 /* client -> server (stops) */
+
+/* possible return values from the server */
+#define FD_RETVAL_SUCCESS	0
+#define FD_RETVAL_FAILURE	1
 
 int fdserver_internal_send_msg(int sock, int command,
 			       fdserver_context_e context,

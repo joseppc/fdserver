@@ -43,7 +43,7 @@ static int handle_request(int client_sock)
 		if ((fd < 0) || (context >= FD_SRV_CTX_END)) {
 			ODP_ERR("Invalid register fd or context\n");
 			fdserver_internal_send_msg(client_sock,
-						   FD_REGISTER_NACK,
+						   FD_RETVAL_FAILURE,
 						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
@@ -58,19 +58,20 @@ static int handle_request(int client_sock)
 		} else {
 			ODP_ERR("FD table full\n");
 			fdserver_internal_send_msg(client_sock,
-						   FD_REGISTER_NACK,
+						   FD_RETVAL_FAILURE,
 						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
 
-		fdserver_internal_send_msg(client_sock, FD_REGISTER_ACK,
+		fdserver_internal_send_msg(client_sock, FD_RETVAL_SUCCESS,
 					   FD_SRV_CTX_NA, 0, -1);
 		break;
 
 	case FD_LOOKUP_REQ:
 		if (context >= FD_SRV_CTX_END) {
 			ODP_ERR("invalid lookup context\n");
-			fdserver_internal_send_msg(client_sock, FD_LOOKUP_NACK,
+			fdserver_internal_send_msg(client_sock,
+						   FD_RETVAL_FAILURE,
 						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
@@ -84,7 +85,7 @@ static int handle_request(int client_sock)
 					" key=%" PRIu64 "}->fd=%d\n",
 					context, key, fd);
 				fdserver_internal_send_msg(client_sock,
-							   FD_LOOKUP_ACK,
+							   FD_RETVAL_SUCCESS,
 							   context, key,
 							   fd);
 				return 0;
@@ -92,15 +93,15 @@ static int handle_request(int client_sock)
 		}
 
 		/* context+key not found... send nack */
-		fdserver_internal_send_msg(client_sock, FD_LOOKUP_NACK, context,
-					   key, -1);
+		fdserver_internal_send_msg(client_sock, FD_RETVAL_FAILURE,
+					   context, key, -1);
 		break;
 
 	case FD_DEREGISTER_REQ:
 		if (context >= FD_SRV_CTX_END) {
 			ODP_ERR("invalid deregister context\n");
 			fdserver_internal_send_msg(client_sock,
-						   FD_DEREGISTER_NACK,
+						   FD_RETVAL_FAILURE,
 						   FD_SRV_CTX_NA, 0, -1);
 			return 0;
 		}
@@ -115,14 +116,14 @@ static int handle_request(int client_sock)
 				close(fd_table[i].fd);
 				fd_table[i] = fd_table[--fd_table_nb_entries];
 				fdserver_internal_send_msg(client_sock,
-							   FD_DEREGISTER_ACK,
+							   FD_RETVAL_SUCCESS,
 							   context, key, -1);
 				return 0;
 			}
 		}
 
 		/* key not found... send nack */
-		fdserver_internal_send_msg(client_sock, FD_DEREGISTER_NACK,
+		fdserver_internal_send_msg(client_sock, FD_RETVAL_FAILURE,
 					   context, key, -1);
 		break;
 

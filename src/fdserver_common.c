@@ -21,9 +21,8 @@ const char * const fdserver_path = "/tmp/fdserver_socket";
  * This function is used both by:
  * -the client (sending a FD_REGISTER_REQ with a file descriptor to be shared,
  *  or FD_LOOKUP_REQ/FD_DEREGISTER_REQ without a file descriptor)
- * -the server (sending FD_REGISTER_ACK/NACK, FD_LOOKUP_NACK,
- *  FD_DEREGISTER_ACK/NACK... without a fd or a
- *  FD_LOOKUP_ACK with a fd)
+ * -the server to send the reply to the request with a return value, currently
+ *  either FD_RETVAL_SUCCESS or FD_RETVAL_FAILURE
  * This function make use of the ancillary data (control data) to pass and
  * convert file descriptors over UNIX sockets
  * Return -1 on error, 0 on success.
@@ -83,9 +82,8 @@ int fdserver_internal_send_msg(int sock, int command,
  * This function is used both by:
  * -the server (receiving a FD_REGISTER_REQ with a file descriptor to be shared,
  *  or FD_LOOKUP_REQ, FD_DEREGISTER_REQ without a file descriptor)
- * -the client (receiving FD_REGISTER_ACK...without a fd or a FD_LOOKUP_ACK with
- * a fd)
- * This function make use of the ancillary data (control data) to pass and
+ * -the client (receiving the reply of a request)
+ * This function makes use of the ancillary data (control data) to pass and
  * convert file descriptors over UNIX sockets.
  * Return -1 on error, 0 on success.
  */
