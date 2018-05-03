@@ -8,8 +8,6 @@
 
 #include <stdint.h>
 
-#define FDSERVER_BACKLOG 5
-
 #define FD_ODP_DEBUG_PRINT 0
 
 #define FD_ODP_DBG(fmt, ...) \
@@ -17,16 +15,6 @@
 		if (FD_ODP_DEBUG_PRINT == 1) \
 			ODP_DBG(fmt, ##__VA_ARGS__);\
 	} while (0)
-
-/* define the tables of file descriptors handled by this server: */
-#define FDSERVER_MAX_ENTRIES 256
-typedef struct fdentry_s {
-	fdserver_context_e context;
-	uint64_t key;
-	int  fd;
-} fdentry_t;
-static fdentry_t *fd_table;
-static int fd_table_nb_entries;
 
 /*
  * define the message struct used for communication between client and server

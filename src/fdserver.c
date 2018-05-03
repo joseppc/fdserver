@@ -23,6 +23,17 @@
 #include <odp_adapt.h>
 #include <fdserver_internal.h>
 
+#define FDSERVER_BACKLOG 5
+/* define the tables of file descriptors handled by this server: */
+#define FDSERVER_MAX_ENTRIES 256
+typedef struct fdentry_s {
+	fdserver_context_e context;
+	uint64_t key;
+	int  fd;
+} fdentry_t;
+static fdentry_t *fd_table;
+static int fd_table_nb_entries;
+
 /*
  * server function
  * receive a client request and handle it.
