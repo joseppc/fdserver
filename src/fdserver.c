@@ -26,22 +26,36 @@
 #define FDSERVER_BACKLOG 5
 /* define the tables of file descriptors handled by this server: */
 #define FDSERVER_MAX_ENTRIES 256
-typedef struct fdentry_s {
-	fdserver_context_e context;
+struct fdentry {
 	uint64_t key;
 	int  fd;
-} fdentry_t;
-static fdentry_t *fd_table = NULL;
-static int fd_table_nb_entries = 0;
+};
+
+struct fdcontext_entry {
+	fdserver_context_e context;
+	int max_entries;
+	int num_entries;
+	struct fdentry fd_table[0];
+};
+static struct fdcontext_entry *context_table;
+static int fdentry_table_count = 0;
 
 static void handle_new_context(int client_sock)
 {
-	if (fd_table != NULL)
+	size_t size;
+
+	if (context_table != NULL)
 		goto send_error;
 
-	fd_table = malloc(FDSERVER_MAX_ENTRIES * sizeof(fdentry_t));
-	if (fd_table != NULL) {
-		memset(fd_table, 0, FDSERVER_MAX_ENTRIES * sizeof(fdentry_t));
+	size = sizeof(struct fdcontext_entry) +
+		FDSERVER_MAX_ENTRIES * sizeof(struct fdentry);
+
+	context_table = malloc(size);
+	if (context_table != NULL) {
+		memset(context_table, 0, size);
+		context_table->context = FD_SRV_CTX_ISHM;
+		context_table->max_entries = FDSERVER_MAX_ENTRIES;
+		context_table->num_entries = 0;
 		fdserver_internal_send_msg(client_sock,
 					   FD_RETVAL_SUCCESS,
 					   FD_SRV_CTX_NA, 0, -1);
@@ -56,6 +70,54 @@ send_error:
 				   FD_SRV_CTX_NA, 0, -1);
 }
 
+static struct fdcontext_entry *find_context(fdserver_context_e *context)
+{
+	return context_table;
+}
+
+static int add_fdentry(struct fdcontext_entry *context, uint64_t key, int fd)
+{
+	struct fdentry *fdentry;
+
+	if (context->num_entries >= context->max_entries)
+		return -1;
+
+	context->fd_table[context->num_entries].key = key;
+	context->fd_table[context->num_entries].fd = fd;
+	context->num_entries++;
+
+	return 0;
+}
+
+static int find_fdentry_from_key(struct fdcontext_entry *context, uint64_t key)
+{
+	struct fdentry *fd_table;
+
+	fd_table = &(context->fd_table[0]);
+	for (int i = 0; i < context->num_entries; i++) {
+		if (fd_table[i].key == key)
+			return fd_table[i].fd;
+	}
+
+	return -1;
+}
+
+static int del_fdentry(struct fdcontext_entry *context, uint64_t key)
+{
+	struct fdentry *fd_table;
+
+	fd_table = &context->fd_table[0];
+	for (int i = 0; i < context->num_entries; i++) {
+		if (fd_table[i].key == key) {
+			close(fd_table[i].fd);
+			fd_table[i] = fd_table[--context->num_entries];
+			return 0;
+		}
+	}
+
+	return -1;
+}
+
 /*
  * server function
  * receive a client request and handle it.
@@ -64,17 +126,18 @@ send_error:
 static int handle_request(int client_sock)
 {
 	int command;
-	fdserver_context_e context;
+	fdserver_context_e ctx;
+	struct fdcontext_entry *context;
 	uint64_t key;
 	int fd;
 	int i;
 
 	/* get a client request: */
-	fdserver_internal_recv_msg(client_sock, &command, &context, &key, &fd);
+	fdserver_internal_recv_msg(client_sock, &command, &ctx, &key, &fd);
 	switch (command) {
 	case FD_REGISTER_REQ:
-		if ((fd < 0) || (context >= FD_SRV_CTX_END) ||
-		    (fd_table == NULL)) {
+		context = find_context(&ctx);
+		if ((fd < 0) || (context == NULL)) {
 			ODP_ERR("Invalid register fd or context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
@@ -82,11 +145,7 @@ static int handle_request(int client_sock)
 			return 0;
 		}
 
-		/* store the file descriptor in table: */
-		if (fd_table_nb_entries < FDSERVER_MAX_ENTRIES) {
-			fd_table[fd_table_nb_entries].context = context;
-			fd_table[fd_table_nb_entries].key     = key;
-			fd_table[fd_table_nb_entries++].fd    = fd;
+		if (add_fdentry(context, key, fd) == 0) {
 			FD_ODP_DBG("storing {ctx=%d, key=%" PRIu64 "}->fd=%d\n",
 				   context, key, fd);
 		} else {
@@ -102,7 +161,8 @@ static int handle_request(int client_sock)
 		break;
 
 	case FD_LOOKUP_REQ:
-		if ((context >= FD_SRV_CTX_END) || (fd_table == NULL)) {
+		context = find_context(&ctx);
+		if (context == NULL) {
 			ODP_ERR("invalid lookup context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
@@ -110,55 +170,35 @@ static int handle_request(int client_sock)
 			return 0;
 		}
 
-		/* search key in table and sent reply: */
-		for (i = 0; i < fd_table_nb_entries; i++) {
-			if ((fd_table[i].context == context) &&
-			    (fd_table[i].key == key)) {
-				fd = fd_table[i].fd;
-				ODP_DBG("lookup {ctx=%d,"
-					" key=%" PRIu64 "}->fd=%d\n",
-					context, key, fd);
-				fdserver_internal_send_msg(client_sock,
-							   FD_RETVAL_SUCCESS,
-							   context, key,
-							   fd);
-				return 0;
-			}
-		}
+		fd = find_fdentry_from_key(context, key);
+		if (fd == -1)
+			command = FD_RETVAL_FAILURE;
+		else
+			command = FD_RETVAL_SUCCESS;
 
-		/* context+key not found... send nack */
-		fdserver_internal_send_msg(client_sock, FD_RETVAL_FAILURE,
-					   context, key, -1);
+		fdserver_internal_send_msg(client_sock, command,
+					   ctx, key, fd);
+
+		FD_ODP_DBG("lookup {ctx=%d, key=%" PRIu64 "}->fd=%d\n",
+			   ctx, key, fd);
 		break;
 
 	case FD_DEREGISTER_REQ:
-		if ((context >= FD_SRV_CTX_END) || (fd_table == NULL)) {
-			ODP_ERR("invalid deregister context\n");
-			fdserver_internal_send_msg(client_sock,
-						   FD_RETVAL_FAILURE,
-						   FD_SRV_CTX_NA, 0, -1);
-			return 0;
-		}
-
-		/* search key in table and remove it if found, and reply: */
-		for (i = 0; i < fd_table_nb_entries; i++) {
-			if ((fd_table[i].context == context) &&
-			    (fd_table[i].key == key)) {
-				FD_ODP_DBG("drop {ctx=%d,"
-					   " key=%" PRIu64 "}->fd=%d\n",
-					   context, key, fd_table[i].fd);
-				close(fd_table[i].fd);
-				fd_table[i] = fd_table[--fd_table_nb_entries];
-				fdserver_internal_send_msg(client_sock,
-							   FD_RETVAL_SUCCESS,
-							   context, key, -1);
-				return 0;
+		FD_ODP_DBG("Delete {ctx: %d, key: %" PRIu64 "}\n", ctx, key);
+		command = FD_RETVAL_FAILURE;
+		context = find_context(&ctx);
+		if (context != NULL) {
+			if (del_fdentry(context, key) == 0) {
+				ODP_DBG("deleted {ctx=%d, key=%" PRIu64 "}\n",
+					ctx, key);
+				command = FD_RETVAL_SUCCESS;
+			} else {
+				ODP_DBG("Failed to delete deleted {ctx=%d, "
+					"key=%" PRIu64 "}\n",
+					ctx, key);
 			}
 		}
-
-		/* key not found... send nack */
-		fdserver_internal_send_msg(client_sock, FD_RETVAL_FAILURE,
-					   context, key, -1);
+		fdserver_internal_send_msg(client_sock, command, ctx, key, -1);
 		break;
 
 	case FD_SERVERSTOP_REQ:
@@ -243,14 +283,14 @@ int _odp_fdserver_init_global(void)
 		return -1;
 	}
 
-	fd_table = NULL;
+	context_table = NULL;
 
 	/* wait for clients requests */
 	wait_requests(sock); /* Returns when server is stopped  */
 	close(sock);
 
 	/* release the file descriptor table: */
-	free(fd_table);
+	free(context_table);
 
 	return 0;
 }
