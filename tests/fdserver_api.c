@@ -16,6 +16,11 @@ struct Test {
 	const char *name;
 };
 
+static int create_context(void)
+{
+	return fdserver_new_context();
+}
+
 static int request_missing_fd(void)
 {
 	int fd;
@@ -108,6 +113,7 @@ static int terminate_server(void)
 }
 
 struct Test tests_suite[] = {
+	{ create_context, "Create context" },
 	{ request_missing_fd, "Request missing fd" },
 	{ register_fds, "Register two file descriptors" },
 	{ lookup_writer, "Lookup writer fd" },

@@ -25,6 +25,12 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
+	ret = fdserver_new_context();
+	if (ret == -1) {
+		fprintf(stderr, "Could not create a new context\n");
+		exit(EXIT_FAILURE);
+	}
+
 	ret = fdserver_register_fd(FD_SRV_CTX_ISHM,
 				   SHARE_PIPE_KEY_WRITER,
 				   fd[1]);

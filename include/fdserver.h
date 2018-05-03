@@ -29,6 +29,7 @@ typedef enum fdserver_context {
 	FD_SRV_CTX_END, /* upper enum limit */
 } fdserver_context_e;
 
+int fdserver_new_context(void);
 int fdserver_register_fd(fdserver_context_e context, uint64_t key, int fd);
 int fdserver_deregister_fd(fdserver_context_e context, uint64_t key);
 int fdserver_lookup_fd(fdserver_context_e context, uint64_t key);

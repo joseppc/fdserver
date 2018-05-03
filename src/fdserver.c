@@ -31,8 +31,30 @@ typedef struct fdentry_s {
 	uint64_t key;
 	int  fd;
 } fdentry_t;
-static fdentry_t *fd_table;
-static int fd_table_nb_entries;
+static fdentry_t *fd_table = NULL;
+static int fd_table_nb_entries = 0;
+
+static void handle_new_context(int client_sock)
+{
+	if (fd_table != NULL)
+		goto send_error;
+
+	fd_table = malloc(FDSERVER_MAX_ENTRIES * sizeof(fdentry_t));
+	if (fd_table != NULL) {
+		memset(fd_table, 0, FDSERVER_MAX_ENTRIES * sizeof(fdentry_t));
+		fdserver_internal_send_msg(client_sock,
+					   FD_RETVAL_SUCCESS,
+					   FD_SRV_CTX_NA, 0, -1);
+		FD_ODP_DBG("New context created\n");
+		return;
+	}
+
+send_error:
+	FD_ODP_DBG("Failed to create new context\n");
+	fdserver_internal_send_msg(client_sock,
+				   FD_RETVAL_FAILURE,
+				   FD_SRV_CTX_NA, 0, -1);
+}
 
 /*
  * server function
@@ -51,7 +73,8 @@ static int handle_request(int client_sock)
 	fdserver_internal_recv_msg(client_sock, &command, &context, &key, &fd);
 	switch (command) {
 	case FD_REGISTER_REQ:
-		if ((fd < 0) || (context >= FD_SRV_CTX_END)) {
+		if ((fd < 0) || (context >= FD_SRV_CTX_END) ||
+		    (fd_table == NULL)) {
 			ODP_ERR("Invalid register fd or context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
@@ -79,7 +102,7 @@ static int handle_request(int client_sock)
 		break;
 
 	case FD_LOOKUP_REQ:
-		if (context >= FD_SRV_CTX_END) {
+		if ((context >= FD_SRV_CTX_END) || (fd_table == NULL)) {
 			ODP_ERR("invalid lookup context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
@@ -109,7 +132,7 @@ static int handle_request(int client_sock)
 		break;
 
 	case FD_DEREGISTER_REQ:
-		if (context >= FD_SRV_CTX_END) {
+		if ((context >= FD_SRV_CTX_END) || (fd_table == NULL)) {
 			ODP_ERR("invalid deregister context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
@@ -141,6 +164,10 @@ static int handle_request(int client_sock)
 	case FD_SERVERSTOP_REQ:
 		FD_ODP_DBG("Stoping FD server\n");
 		return 1;
+
+	case FD_NEW_CONTEXT:
+		handle_new_context(client_sock);
+		break;
 
 	default:
 		ODP_ERR("Unexpected request\n");
@@ -216,12 +243,7 @@ int _odp_fdserver_init_global(void)
 		return -1;
 	}
 
-	/* allocate the space for the file descriptor<->key table: */
-	fd_table = malloc(FDSERVER_MAX_ENTRIES * sizeof(fdentry_t));
-	if (!fd_table) {
-		ODP_ERR("maloc failed!\n");
-		exit(1);
-	}
+	fd_table = NULL;
 
 	/* wait for clients requests */
 	wait_requests(sock); /* Returns when server is stopped  */

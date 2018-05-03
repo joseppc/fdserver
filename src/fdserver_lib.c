@@ -222,3 +222,33 @@ int fdserver_terminate(fdserver_context_e context)
 
 	return 0;
 }
+
+int fdserver_new_context(void)
+{
+	int s_sock; /* server socket */
+	int res, retval;
+	fdserver_context_e context;
+	uint64_t key;
+	int fd;
+
+	s_sock = get_socket();
+	if (s_sock < 0)
+		return -1;
+
+	res = fdserver_internal_send_msg(s_sock, FD_NEW_CONTEXT,
+					 FD_SRV_CTX_NA, 0, -1);
+	if (res < 0) {
+		close(s_sock);
+		ODP_ERR("Could not create a new context\n");
+		return -1;
+	}
+
+	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
+	close(s_sock);
+	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
+		ODP_ERR("fd lookup failure\n");
+		return -1;
+	}
+
+	return 0;
+}
