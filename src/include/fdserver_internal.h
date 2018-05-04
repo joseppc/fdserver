@@ -8,13 +8,20 @@
 
 #include <stdint.h>
 
-#define FD_ODP_DEBUG_PRINT 0
+#define FD_ODP_DEBUG_PRINT 1
 
 #define FD_ODP_DBG(fmt, ...) \
 	do { \
 		if (FD_ODP_DEBUG_PRINT == 1) \
 			ODP_DBG(fmt, ##__VA_ARGS__);\
 	} while (0)
+
+#define DEFAULT_TOKEN 0xDADADADA
+
+struct fdserver_context {
+	uint32_t index;
+	uint32_t token;
+};
 
 /*
  * define the message struct used for communication between client and server
@@ -26,7 +33,8 @@ typedef struct fd_server_msg {
 		int command;
 		int retval;
 	};
-	fdserver_context_e context;
+	uint32_t index;
+	uint32_t token;
 	uint64_t key;
 } fdserver_msg_t;
 /* possible commands are: */
@@ -41,11 +49,11 @@ typedef struct fd_server_msg {
 #define FD_RETVAL_FAILURE	1
 
 int fdserver_internal_send_msg(int sock, int command,
-			       fdserver_context_e context,
+			       struct fdserver_context *context,
 			       uint64_t key, int fd_to_send);
 
 int fdserver_internal_recv_msg(int sock, int *command,
-			       fdserver_context_e *context,
+			       struct fdserver_context *context,
 			       uint64_t *key, int *fd_to_send);
 
 #endif

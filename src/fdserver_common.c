@@ -28,8 +28,8 @@ const char * const fdserver_path = "/tmp/fdserver_socket";
  * Return -1 on error, 0 on success.
  */
 int fdserver_internal_send_msg(int sock, int command,
-			       fdserver_context_e context, uint64_t key,
-			       int fd_to_send)
+			       struct fdserver_context *context,
+			       uint64_t key, int fd_to_send)
 {
 	struct msghdr socket_message;
 	struct iovec io_vector[1]; /* one msg frgmt only */
@@ -42,7 +42,8 @@ int fdserver_internal_send_msg(int sock, int command,
 
 	/* prepare the register request body (single framgent): */
 	msg.command = command;
-	msg.context = context;
+	msg.index = context->index;
+	msg.token = context->token;
 	msg.key = key;
 	io_vector[0].iov_base = &msg;
 	io_vector[0].iov_len = sizeof(fdserver_msg_t);
@@ -88,8 +89,8 @@ int fdserver_internal_send_msg(int sock, int command,
  * Return -1 on error, 0 on success.
  */
 int fdserver_internal_recv_msg(int sock, int *command,
-			       fdserver_context_e *context, uint64_t *key,
-			       int *recvd_fd)
+			       struct fdserver_context *context,
+			       uint64_t *key, int *recvd_fd)
 {
 	struct msghdr socket_message;
 	struct iovec io_vector[1]; /* one msg frgmt only */
@@ -118,7 +119,8 @@ int fdserver_internal_recv_msg(int sock, int *command,
 	}
 
 	*command = msg.command;
-	*context = msg.context;
+	context->index = msg.index;
+	context->token = msg.token;
 	*key = msg.key;
 
 	/* grab the converted file descriptor (if any) */

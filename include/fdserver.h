@@ -23,7 +23,7 @@ extern "C" {
  * unrelated fd server users do not have to guarantee key unicity between
  * them.
  */
-typedef enum fdserver_context {
+typedef enum fdserver_context_e {
 	FD_SRV_CTX_NA,  /* Not Applicable   */
 	FD_SRV_CTX_ISHM,
 	FD_SRV_CTX_END, /* upper enum limit */

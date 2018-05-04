@@ -32,17 +32,18 @@ struct fdentry {
 };
 
 struct fdcontext_entry {
-	fdserver_context_e context;
+	uint32_t token;
 	int max_entries;
 	int num_entries;
 	struct fdentry fd_table[0];
 };
 static struct fdcontext_entry *context_table;
-static int fdentry_table_count = 0;
+static uint32_t fdcontext_entry_count = 0;
 
 static void handle_new_context(int client_sock)
 {
 	size_t size;
+	struct fdserver_context context;
 
 	if (context_table != NULL)
 		goto send_error;
@@ -53,29 +54,41 @@ static void handle_new_context(int client_sock)
 	context_table = malloc(size);
 	if (context_table != NULL) {
 		memset(context_table, 0, size);
-		context_table->context = FD_SRV_CTX_ISHM;
+		context_table->token = DEFAULT_TOKEN;
 		context_table->max_entries = FDSERVER_MAX_ENTRIES;
 		context_table->num_entries = 0;
+		context.index = 0;
+		context.token = DEFAULT_TOKEN;
 		fdserver_internal_send_msg(client_sock,
 					   FD_RETVAL_SUCCESS,
-					   FD_SRV_CTX_NA, 0, -1);
+					   &context, 0, -1);
+		fdcontext_entry_count++;
 		FD_ODP_DBG("New context created\n");
 		return;
 	}
 
 send_error:
 	FD_ODP_DBG("Failed to create new context\n");
+	context.index = 0;
+	context.token = 0;
 	fdserver_internal_send_msg(client_sock,
 				   FD_RETVAL_FAILURE,
-				   FD_SRV_CTX_NA, 0, -1);
+				   &context, 0, -1);
 }
 
-static struct fdcontext_entry *find_context(fdserver_context_e *context)
+static struct fdcontext_entry *find_context(struct fdserver_context *context)
 {
-	return context_table;
+	FD_ODP_DBG("Find context for %u -> %u\n",
+		   context->index, context->token);
+	if (context->index >= fdcontext_entry_count)
+		return NULL;
+	if (context_table[context->index].token == context->token)
+		return &context_table[context->index];
+	return NULL;
 }
 
-static int add_fdentry(struct fdcontext_entry *context, uint64_t key, int fd)
+static int add_fdentry(struct fdcontext_entry *context,
+		       uint64_t key, int fd)
 {
 	struct fdentry *fdentry;
 
@@ -126,7 +139,7 @@ static int del_fdentry(struct fdcontext_entry *context, uint64_t key)
 static int handle_request(int client_sock)
 {
 	int command;
-	fdserver_context_e ctx;
+	struct fdserver_context ctx;
 	struct fdcontext_entry *context;
 	uint64_t key;
 	int fd;
@@ -141,23 +154,23 @@ static int handle_request(int client_sock)
 			ODP_ERR("Invalid register fd or context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
-						   FD_SRV_CTX_NA, 0, -1);
+						   &ctx, 0, -1);
 			return 0;
 		}
 
 		if (add_fdentry(context, key, fd) == 0) {
-			FD_ODP_DBG("storing {ctx=%d, key=%" PRIu64 "}->fd=%d\n",
-				   context, key, fd);
+			FD_ODP_DBG("storing {ctx=%u, key=%" PRIu64 "}->fd=%d\n",
+				   ctx.index, key, fd);
 		} else {
 			ODP_ERR("FD table full\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
-						   FD_SRV_CTX_NA, 0, -1);
+						   &ctx, 0, -1);
 			return 0;
 		}
 
 		fdserver_internal_send_msg(client_sock, FD_RETVAL_SUCCESS,
-					   FD_SRV_CTX_NA, 0, -1);
+					   &ctx, 0, -1);
 		break;
 
 	case FD_LOOKUP_REQ:
@@ -166,7 +179,7 @@ static int handle_request(int client_sock)
 			ODP_ERR("invalid lookup context\n");
 			fdserver_internal_send_msg(client_sock,
 						   FD_RETVAL_FAILURE,
-						   FD_SRV_CTX_NA, 0, -1);
+						   &ctx, 0, -1);
 			return 0;
 		}
 
@@ -177,28 +190,29 @@ static int handle_request(int client_sock)
 			command = FD_RETVAL_SUCCESS;
 
 		fdserver_internal_send_msg(client_sock, command,
-					   ctx, key, fd);
+					   &ctx, key, fd);
 
-		FD_ODP_DBG("lookup {ctx=%d, key=%" PRIu64 "}->fd=%d\n",
-			   ctx, key, fd);
+		FD_ODP_DBG("lookup {ctx=%u, key=%" PRIu64 "}->fd=%d\n",
+			   ctx.index, key, fd);
 		break;
 
 	case FD_DEREGISTER_REQ:
-		FD_ODP_DBG("Delete {ctx: %d, key: %" PRIu64 "}\n", ctx, key);
+		FD_ODP_DBG("Delete {ctx: %d, key: %" PRIu64 "}\n",
+			   ctx.index, key);
 		command = FD_RETVAL_FAILURE;
 		context = find_context(&ctx);
 		if (context != NULL) {
 			if (del_fdentry(context, key) == 0) {
-				ODP_DBG("deleted {ctx=%d, key=%" PRIu64 "}\n",
-					ctx, key);
+				ODP_DBG("deleted {ctx=%u, key=%" PRIu64 "}\n",
+					ctx.index, key);
 				command = FD_RETVAL_SUCCESS;
 			} else {
-				ODP_DBG("Failed to delete deleted {ctx=%d, "
+				ODP_DBG("Failed to delete deleted {ctx=%u, "
 					"key=%" PRIu64 "}\n",
-					ctx, key);
+					ctx.index, key);
 			}
 		}
-		fdserver_internal_send_msg(client_sock, command, ctx, key, -1);
+		fdserver_internal_send_msg(client_sock, command, &ctx, key, -1);
 		break;
 
 	case FD_SERVERSTOP_REQ:
