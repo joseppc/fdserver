@@ -26,6 +26,7 @@
 #define FDSERVER_BACKLOG 5
 /* define the tables of file descriptors handled by this server: */
 #define FDSERVER_MAX_ENTRIES 256
+#define FDSERVER_MAX_CONTEXTS 16
 struct fdentry {
 	uint64_t key;
 	int  fd;
@@ -37,33 +38,40 @@ struct fdcontext_entry {
 	int num_entries;
 	struct fdentry fd_table[0];
 };
-static struct fdcontext_entry *context_table;
-static uint32_t fdcontext_entry_count = 0;
+static struct fdcontext_entry *context_table[FDSERVER_MAX_CONTEXTS] = {NULL};
 
 static void handle_new_context(int client_sock)
 {
 	size_t size;
 	struct fdserver_context context;
+	struct fdcontext_entry *entry;
+	uint32_t index;
 
-	if (context_table != NULL)
+	for (index = 0; index < FDSERVER_MAX_CONTEXTS; index++) {
+		if (context_table[index] == NULL)
+			break;
+	}
+	if (index >= FDSERVER_MAX_CONTEXTS) {
+		FD_ODP_DBG("Too many contexts\n");
 		goto send_error;
+	}
 
 	size = sizeof(struct fdcontext_entry) +
 		FDSERVER_MAX_ENTRIES * sizeof(struct fdentry);
 
-	context_table = malloc(size);
-	if (context_table != NULL) {
-		memset(context_table, 0, size);
-		context_table->token = DEFAULT_TOKEN;
-		context_table->max_entries = FDSERVER_MAX_ENTRIES;
-		context_table->num_entries = 0;
-		context.index = 0;
+	entry = malloc(size);
+	if (entry != NULL) {
+		memset(entry, 0, size);
+		entry->token = DEFAULT_TOKEN;
+		entry->max_entries = FDSERVER_MAX_ENTRIES;
+		entry->num_entries = 0;
+		context.index = index;
 		context.token = DEFAULT_TOKEN;
+		context_table[index] = entry;
 		fdserver_internal_send_msg(client_sock,
 					   FD_RETVAL_SUCCESS,
 					   &context, 0, -1);
-		fdcontext_entry_count++;
-		FD_ODP_DBG("New context created\n");
+		FD_ODP_DBG("New context %u created\n", index);
 		return;
 	}
 
@@ -78,13 +86,20 @@ send_error:
 
 static struct fdcontext_entry *find_context(struct fdserver_context *context)
 {
+	struct fdcontext_entry *entry;
+
 	FD_ODP_DBG("Find context for %u -> %u\n",
 		   context->index, context->token);
-	if (context->index >= fdcontext_entry_count)
+
+	if (context->index >= FDSERVER_MAX_CONTEXTS)
 		return NULL;
-	if (context_table[context->index].token == context->token)
-		return &context_table[context->index];
-	return NULL;
+
+	entry = context_table[context->index];
+
+	if (entry == NULL || entry->token != context->token)
+		return NULL;
+
+	return entry;
 }
 
 static int add_fdentry(struct fdcontext_entry *context,
@@ -197,7 +212,7 @@ static int handle_request(int client_sock)
 		break;
 
 	case FD_DEREGISTER_REQ:
-		FD_ODP_DBG("Delete {ctx: %d, key: %" PRIu64 "}\n",
+		FD_ODP_DBG("Delete {ctx: %u, key: %" PRIu64 "}\n",
 			   ctx.index, key);
 		command = FD_RETVAL_FAILURE;
 		context = find_context(&ctx);
@@ -297,14 +312,9 @@ int _odp_fdserver_init_global(void)
 		return -1;
 	}
 
-	context_table = NULL;
-
 	/* wait for clients requests */
 	wait_requests(sock); /* Returns when server is stopped  */
 	close(sock);
-
-	/* release the file descriptor table: */
-	free(context_table);
 
 	return 0;
 }
