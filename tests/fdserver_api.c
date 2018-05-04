@@ -9,7 +9,7 @@
 #define KEY_READER 0
 #define KEY_WRITER 1
 
-fdserver_context_e context = FD_SRV_CTX_ISHM;
+static fdserver_context_t *context = NULL;
 
 struct Test {
 	int (*run_test)(void);
@@ -18,7 +18,7 @@ struct Test {
 
 static int create_context(void)
 {
-	return fdserver_new_context();
+	return fdserver_new_context(&context);
 }
 
 static int request_missing_fd(void)

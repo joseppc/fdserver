@@ -8,7 +8,7 @@
 
 #include <stdint.h>
 
-#define FD_ODP_DEBUG_PRINT 1
+#define FD_ODP_DEBUG_PRINT 0
 
 #define FD_ODP_DBG(fmt, ...) \
 	do { \
