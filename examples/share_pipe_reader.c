@@ -8,33 +8,72 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <errno.h>
+#include <sys/prctl.h>
+#include <signal.h>
 
 #include <fdserver.h>
 
 #include "share_pipe_common.h"
+
+static void run_writer(fdserver_context_t *context)
+{
+	int fd;
+
+	sleep(2); /* give time to register, etc */
+
+	fd = fdserver_lookup_fd(context, SHARE_PIPE_KEY_WRITER);
+	if (fd == -1) {
+		fprintf(stderr, "Could not retrive fd\n");
+		exit(EXIT_FAILURE);
+	}
+
+	printf("Writer: got file descriptor %d, sending\n", fd);
+	write(fd, &fd, sizeof(int));
+	printf("Writer:  done\n");
+	close(fd);
+
+	exit(EXIT_SUCCESS);
+}
 
 int main(int argc, char *argv[])
 {
 	int fd[2];
 	int ret;
 	int data;
+	fdserver_context_t *context;
+	pid_t pid;
 
-	ret = pipe(fd);
-	if (ret == -1) {
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-
-	ret = fdserver_new_context();
+	ret = fdserver_new_context(&context);
 	if (ret == -1) {
 		fprintf(stderr, "Could not create a new context\n");
 		exit(EXIT_FAILURE);
 	}
 
-	ret = fdserver_register_fd(FD_SRV_CTX_ISHM,
+	pid = fork();
+	if (pid == -1) {
+		fdserver_terminate(context);
+		exit(EXIT_FAILURE);
+	}
+	if (pid == 0) {
+		/* die if parent dies too */
+		prctl(PR_SET_PDEATHSIG, SIGTERM);
+		run_writer(context);
+	}
+
+	/* parent */
+	ret = pipe(fd);
+	if (ret == -1) {
+		fdserver_terminate(context);
+		perror("pipe");
+		exit(EXIT_FAILURE);
+	}
+
+
+	ret = fdserver_register_fd(context,
 				   SHARE_PIPE_KEY_WRITER,
 				   fd[1]);
 	if (ret == -1) {
+		fdserver_terminate(context);
 		fprintf(stderr, "failed to register fd\n");
 		exit(EXIT_FAILURE);
 	}
@@ -47,6 +86,7 @@ int main(int argc, char *argv[])
 			printf("again\n");
 			continue;
 		}
+		fdserver_terminate(context);
 		perror("read");
 		exit(EXIT_FAILURE);
 	}
@@ -55,7 +95,7 @@ int main(int argc, char *argv[])
 
 	close(fd[0]);
 
-	fdserver_terminate(FD_SRV_CTX_ISHM);
+	fdserver_terminate(context);
 
 	exit(EXIT_SUCCESS);
 }
