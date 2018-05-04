@@ -107,6 +107,11 @@ static int terminate_server(void)
 {
 	if (fdserver_terminate(context) == -1)
 		return 1;
+	return 0;
+}
+
+static int terminate_unexisting_server(void)
+{
 	if (fdserver_terminate(context) != -1)
 		return 1;
 	return 0;
@@ -121,6 +126,7 @@ struct Test tests_suite[] = {
 	{ deregister_fds, "Deregistering file descriptors" },
 	{ request_missing_fd, "Request missing fd" },
 	{ terminate_server, "Terminate server" },
+	{ terminate_unexisting_server, "Terminate unexisting server" },
 	{ NULL, NULL }
 };
 
