@@ -33,6 +33,7 @@ struct fdentry {
 };
 
 struct fdcontext_entry {
+	uint32_t index;
 	uint32_t token;
 	int max_entries;
 	int num_entries;
@@ -62,6 +63,7 @@ static void handle_new_context(int client_sock)
 	entry = malloc(size);
 	if (entry != NULL) {
 		memset(entry, 0, size);
+		entry->index = index;
 		entry->token = DEFAULT_TOKEN;
 		entry->max_entries = FDSERVER_MAX_ENTRIES;
 		entry->num_entries = 0;
@@ -100,6 +102,13 @@ static struct fdcontext_entry *find_context(struct fdserver_context *context)
 		return NULL;
 
 	return entry;
+}
+
+static int handle_stop_server(struct fdcontext_entry *context)
+{
+	context_table[context->index] = NULL;
+	free(context);
+	return 0;
 }
 
 static int add_fdentry(struct fdcontext_entry *context,
@@ -231,8 +240,12 @@ static int handle_request(int client_sock)
 		break;
 
 	case FD_SERVERSTOP_REQ:
-		FD_ODP_DBG("Stoping FD server\n");
-		return 1;
+		FD_ODP_DBG("Stop FD server\n");
+		context = find_context(&ctx);
+		if (context != NULL)
+			if (handle_stop_server(context) == 0)
+				return 1;
+		break;
 
 	case FD_NEW_CONTEXT:
 		handle_new_context(client_sock);
