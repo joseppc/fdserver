@@ -6,3 +6,6 @@
 sleep 1
 
 ./fdserver_api 2>/dev/null #| grep -e '^\(FAIL\|PASS\)'
+
+killall -HUP fdserver
+wait

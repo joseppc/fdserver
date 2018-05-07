@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 
 	pid = fork();
 	if (pid == -1) {
-		fdserver_terminate(context);
+		fdserver_del_context(&context);
 		exit(EXIT_FAILURE);
 	}
 	if (pid == 0) {
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 	/* parent */
 	ret = pipe(fd);
 	if (ret == -1) {
-		fdserver_terminate(context);
+		fdserver_del_context(&context);
 		perror("pipe");
 		exit(EXIT_FAILURE);
 	}
@@ -73,7 +73,7 @@ int main(int argc, char *argv[])
 				   SHARE_PIPE_KEY_WRITER,
 				   fd[1]);
 	if (ret == -1) {
-		fdserver_terminate(context);
+		fdserver_del_context(&context);
 		fprintf(stderr, "failed to register fd\n");
 		exit(EXIT_FAILURE);
 	}
@@ -86,8 +86,8 @@ int main(int argc, char *argv[])
 			printf("again\n");
 			continue;
 		}
-		fdserver_terminate(context);
 		perror("read");
+		fdserver_del_context(&context);
 		exit(EXIT_FAILURE);
 	}
 
@@ -95,7 +95,7 @@ int main(int argc, char *argv[])
 
 	close(fd[0]);
 
-	fdserver_terminate(context);
+	fdserver_del_context(&context);
 
 	exit(EXIT_SUCCESS);
 }

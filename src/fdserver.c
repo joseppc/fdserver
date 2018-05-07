@@ -261,14 +261,6 @@ static int handle_request(int client_sock)
 		fdserver_internal_send_msg(client_sock, command, &ctx, key, -1);
 		break;
 
-	case FD_SERVERSTOP_REQ:
-		FD_ODP_DBG("Stop FD server\n");
-		context = find_context(&ctx);
-		if (context != NULL)
-			if (handle_stop_server(context) == 0)
-				return 1;
-		break;
-
 	case FD_NEW_CONTEXT:
 		handle_new_context(client_sock);
 		break;

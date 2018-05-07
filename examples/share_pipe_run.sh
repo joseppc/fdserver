@@ -13,3 +13,5 @@ sleep 1
 echo "Running reader"
 ./share_pipe_reader
 
+killall -HUP fdserver
+wait

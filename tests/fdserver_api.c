@@ -23,13 +23,12 @@ static int create_context(void)
 
 static int delete_context(void)
 {
-	if (fdserver_del_context(&context) != 0)
-		return -1;
+	return fdserver_del_context(&context);
+}
 
-	/* this worked before... */
-	fdserver_new_context(&context);
-
-	return 0;
+static int delete_unexisting_context(void)
+{
+	return fdserver_del_context(&context) ? 0: 1;
 }
 
 static int request_missing_fd(void)
@@ -114,31 +113,18 @@ static int deregister_fds(void)
 	return retval;
 }
 
-static int terminate_server(void)
-{
-	if (fdserver_terminate(context) == -1)
-		return 1;
-	return 0;
-}
-
-static int terminate_unexisting_server(void)
-{
-	if (fdserver_terminate(context) != -1)
-		return 1;
-	return 0;
-}
-
 struct Test tests_suite[] = {
 	{ create_context, "Create context" },
 	{ delete_context, "Delete context" },
+	{ create_context, "Create context Again" },
 	{ request_missing_fd, "Request missing fd" },
 	{ register_fds, "Register two file descriptors" },
 	{ lookup_writer, "Lookup writer fd" },
 	{ lookup_reader, "Lookup reader fd" },
 	{ deregister_fds, "Deregistering file descriptors" },
 	{ request_missing_fd, "Request missing fd" },
-	{ terminate_server, "Terminate server" },
-	{ terminate_unexisting_server, "Terminate unexisting server" },
+	{ delete_context, "Delete context" },
+	{ delete_unexisting_context, "Try to delete unexisting context"},
 	{ NULL, NULL }
 };
 
