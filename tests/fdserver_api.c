@@ -21,6 +21,17 @@ static int create_context(void)
 	return fdserver_new_context(&context);
 }
 
+static int delete_context(void)
+{
+	if (fdserver_del_context(&context) != 0)
+		return -1;
+
+	/* this worked before... */
+	fdserver_new_context(&context);
+
+	return 0;
+}
+
 static int request_missing_fd(void)
 {
 	int fd;
@@ -119,6 +130,7 @@ static int terminate_unexisting_server(void)
 
 struct Test tests_suite[] = {
 	{ create_context, "Create context" },
+	{ delete_context, "Delete context" },
 	{ request_missing_fd, "Request missing fd" },
 	{ register_fds, "Register two file descriptors" },
 	{ lookup_writer, "Lookup writer fd" },

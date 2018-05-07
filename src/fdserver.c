@@ -104,6 +104,28 @@ static struct fdcontext_entry *find_context(struct fdserver_context *context)
 	return entry;
 }
 
+static void handle_del_context(int sock, struct fdserver_context *ctx)
+{
+	struct fdcontext_entry *entry;
+	int retval;
+
+	entry = find_context(ctx);
+	if (entry == NULL) {
+		retval = FD_RETVAL_FAILURE;
+		goto do_exit;
+	}
+
+	context_table[entry->index] = NULL;
+
+	for (uint32_t i = 0; i < entry->num_entries; i++)
+		close(entry->fd_table[i].fd);
+
+	free(entry);
+	retval = FD_RETVAL_SUCCESS;
+do_exit:
+	fdserver_internal_send_msg(sock, retval, ctx, 0, -1);
+}
+
 static int handle_stop_server(struct fdcontext_entry *context)
 {
 	context_table[context->index] = NULL;
@@ -249,6 +271,11 @@ static int handle_request(int client_sock)
 
 	case FD_NEW_CONTEXT:
 		handle_new_context(client_sock);
+		break;
+
+	case FD_DEL_CONTEXT:
+		FD_ODP_DBG("Delete context %u\n", ctx.index);
+		handle_del_context(client_sock, &ctx);
 		break;
 
 	default:

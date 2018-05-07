@@ -272,3 +272,34 @@ int fdserver_new_context(fdserver_context_t **ctx)
 
 	return 0;
 }
+
+int fdserver_del_context(fdserver_context_t **ctx)
+{
+	int s_sock; /* server socket */
+	fdserver_context_t context;
+	int res, retval;
+	uint64_t key;
+	int fd;
+
+	if (ctx == NULL || *ctx == NULL)
+		return -1;
+
+	s_sock = get_socket();
+	if (s_sock < 0)
+		return -1;
+
+	res = fdserver_internal_send_msg(s_sock, FD_DEL_CONTEXT, *ctx, 0, -1);
+	if (res != 0)
+		goto exit_close;
+
+	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
+	if (res != 0 || retval != FD_RETVAL_SUCCESS)
+		goto exit_close;
+
+	free(*ctx);
+	*ctx = NULL;
+
+exit_close:
+	close(s_sock);
+	return res;
+}

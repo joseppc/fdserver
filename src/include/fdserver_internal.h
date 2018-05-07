@@ -43,6 +43,7 @@ typedef struct fd_server_msg {
 #define FD_DEREGISTER_REQ	3 /* client -> server */
 #define FD_SERVERSTOP_REQ	4 /* client -> server (stops) */
 #define FD_NEW_CONTEXT		5 /* client -> server */
+#define FD_DEL_CONTEXT		6 /* client -> server */
 
 /* possible return values from the server */
 #define FD_RETVAL_SUCCESS	0
