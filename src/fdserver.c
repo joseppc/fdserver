@@ -279,7 +279,9 @@ static int handle_request(int client_sock)
 		break;
 
 	default:
-		ODP_ERR("Unexpected request\n");
+		ODP_ERR("Unexpected request: %d\n", command);
+		fdserver_internal_send_msg(client_sock, FD_RETVAL_FAILURE,
+					   &ctx, 0, -1);
 		break;
 	}
 	return 0;
