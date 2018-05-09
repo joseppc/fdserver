@@ -18,6 +18,7 @@
 #include <sys/mman.h>
 #include <sys/wait.h>
 #include <sys/prctl.h>
+#include <sys/random.h>
 
 #include <fdserver.h>
 #include <odp_adapt.h>
@@ -64,11 +65,11 @@ static void handle_new_context(int client_sock)
 	if (entry != NULL) {
 		memset(entry, 0, size);
 		entry->index = index;
-		entry->token = DEFAULT_TOKEN;
+		entry->token = (uint32_t)rand();
 		entry->max_entries = FDSERVER_MAX_ENTRIES;
 		entry->num_entries = 0;
 		context.index = index;
-		context.token = DEFAULT_TOKEN;
+		context.token = entry->token;
 		context_table[index] = entry;
 		fdserver_internal_send_msg(client_sock,
 					   FD_RETVAL_SUCCESS,
@@ -90,7 +91,7 @@ static struct fdcontext_entry *find_context(struct fdserver_context *context)
 {
 	struct fdcontext_entry *entry;
 
-	FD_ODP_DBG("Find context for %u -> %u\n",
+	FD_ODP_DBG("Find context for %u -> 0x%08x\n",
 		   context->index, context->token);
 
 	if (context->index >= FDSERVER_MAX_CONTEXTS)
@@ -307,6 +308,20 @@ static void wait_requests(int sock)
 	close(c_socket);
 }
 
+static void prepare_seed(void)
+{
+	unsigned int seed = 1001;
+	ssize_t num_bytes;
+
+again:
+	num_bytes = getrandom(&seed, sizeof(seed), 0);
+	if (num_bytes == -1) {
+		if (errno == EINTR)
+			goto again;
+	}
+	srand(seed);
+}
+
 /*
  * Create a unix domain socket and fork a process to listen to incoming
  * requests.
@@ -318,6 +333,8 @@ int _odp_fdserver_init_global(void)
 	struct sockaddr_un local;
 	pid_t server_pid;
 	int res;
+
+	prepare_seed();
 
 	/* create UNIX domain socket: */
 	sock = socket(AF_UNIX, SOCK_STREAM, 0);

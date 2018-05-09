@@ -16,8 +16,6 @@
 			ODP_DBG(fmt, ##__VA_ARGS__);\
 	} while (0)
 
-#define DEFAULT_TOKEN 0xDADADADA
-
 struct fdserver_context {
 	uint32_t index;
 	uint32_t token;
