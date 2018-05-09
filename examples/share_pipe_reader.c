@@ -68,7 +68,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-
 	ret = fdserver_register_fd(context,
 				   SHARE_PIPE_KEY_WRITER,
 				   fd[1]);

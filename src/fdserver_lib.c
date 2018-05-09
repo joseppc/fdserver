@@ -106,7 +106,7 @@ int fdserver_register_fd(fdserver_context_t *context, uint64_t key,
 	if (s_sock < 0)
 		return -1;
 
-	res =  fdserver_internal_send_msg(s_sock, FD_REGISTER_REQ, context,
+	res = fdserver_internal_send_msg(s_sock, FD_REGISTER_REQ, context,
 					  key, fd_to_send);
 	if (res < 0) {
 		ODP_ERR("fd registration failure\n");
@@ -145,7 +145,7 @@ int fdserver_deregister_fd(fdserver_context_t *context, uint64_t key)
 	if (s_sock < 0)
 		return -1;
 
-	res =  fdserver_internal_send_msg(s_sock, FD_DEREGISTER_REQ, context,
+	res = fdserver_internal_send_msg(s_sock, FD_DEREGISTER_REQ, context,
 					  key, -1);
 	if (res < 0) {
 		ODP_ERR("fd de-registration failure\n");
@@ -182,7 +182,7 @@ int fdserver_lookup_fd(fdserver_context_t *context, uint64_t key)
 	if (s_sock < 0)
 		return -1;
 
-	res =  fdserver_internal_send_msg(s_sock, FD_LOOKUP_REQ, context,
+	res = fdserver_internal_send_msg(s_sock, FD_LOOKUP_REQ, context,
 					  key, -1);
 	if (res < 0) {
 		ODP_ERR("fd lookup failure\n");

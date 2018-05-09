@@ -322,11 +322,7 @@ again:
 	srand(seed);
 }
 
-/*
- * Create a unix domain socket and fork a process to listen to incoming
- * requests.
- */
-int _odp_fdserver_init_global(void)
+static int _odp_fdserver_init_global(void)
 {
 	const char *sockpath = fdserver_path;
 	int sock;
