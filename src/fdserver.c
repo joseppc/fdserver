@@ -127,18 +127,9 @@ do_exit:
 	fdserver_internal_send_msg(sock, retval, ctx, 0, -1);
 }
 
-static int handle_stop_server(struct fdcontext_entry *context)
-{
-	context_table[context->index] = NULL;
-	free(context);
-	return 0;
-}
-
 static int add_fdentry(struct fdcontext_entry *context,
 		       uint64_t key, int fd)
 {
-	struct fdentry *fdentry;
-
 	if (context->num_entries >= context->max_entries)
 		return -1;
 
@@ -190,7 +181,6 @@ static int handle_request(int client_sock)
 	struct fdcontext_entry *context;
 	uint64_t key;
 	int fd;
-	int i;
 
 	/* get a client request: */
 	fdserver_internal_recv_msg(client_sock, &command, &ctx, &key, &fd);
@@ -327,7 +317,6 @@ static int _odp_fdserver_init_global(void)
 	const char *sockpath = fdserver_path;
 	int sock;
 	struct sockaddr_un local;
-	pid_t server_pid;
 	int res;
 
 	prepare_seed();

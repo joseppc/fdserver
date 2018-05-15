@@ -209,7 +209,6 @@ int fdserver_new_context(fdserver_context_t **ctx)
 
 int fdserver_del_context(fdserver_context_t **ctx)
 {
-	fdserver_context_t context;
 	int res;
 	uint64_t key = 0;
 	int retval = -1;
