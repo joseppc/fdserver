@@ -14,6 +14,4 @@
 #define ODP_DBG(...) \
 	fprintf(stderr, __VA_ARGS__)
 
-extern const char * const fdserver_path;
-
 #endif

@@ -8,6 +8,8 @@
 
 #include <stdint.h>
 
+extern const char * const fdserver_path;
+
 #define FD_ODP_DEBUG_PRINT 0
 
 #define FD_ODP_DBG(fmt, ...) \
