@@ -84,6 +84,39 @@ static int get_socket(void)
 	return s_sock;
 }
 
+static int send_command(int command, fdserver_context_t *context,
+			uint64_t *key, int *fd)
+{
+	int s_sock;
+	int res;
+	int retval = -1;
+
+	if (context == NULL)
+		return -1;
+
+	s_sock = get_socket();
+	if (s_sock < 0)
+		return -1;
+
+	res = fdserver_internal_send_msg(s_sock, command, context,
+					 *key, *fd);
+	if (res < 0) {
+		ODP_ERR("Failed to send message to fdserver\n");
+		close(s_sock);
+		return -1;
+	}
+
+	res = fdserver_internal_recv_msg(s_sock, &retval, context,
+					 key, fd);
+	close(s_sock);
+	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
+		ODP_ERR("Error receiving message from fdserver\n");
+		return retval;
+	}
+
+	return 0;
+}
+
 /*
  * Client function:
  * Register a file descriptor to the server. Return -1 on error.
@@ -91,37 +124,16 @@ static int get_socket(void)
 int fdserver_register_fd(fdserver_context_t *context, uint64_t key,
 			 int fd_to_send)
 {
-	int s_sock; /* server socket */
 	int res;
-	int retval;
-	int fd;
-
-	if (context == NULL)
-		return -1;
 
 	FD_ODP_DBG("FD client register: pid=%d key=%" PRIu64 ", fd=%d\n",
 		   getpid(), key, fd_to_send);
 
-	s_sock = get_socket();
-	if (s_sock < 0)
-		return -1;
-
-	res = fdserver_internal_send_msg(s_sock, FD_REGISTER_REQ, context,
-					  key, fd_to_send);
-	if (res < 0) {
+	res = send_command(FD_REGISTER_REQ, context, &key, &fd_to_send);
+	if (res != 0)
 		ODP_ERR("fd registration failure\n");
-		close(s_sock);
-		return -1;
-	}
 
-	res = fdserver_internal_recv_msg(s_sock, &retval, context, &key, &fd);
-	close(s_sock);
-	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
-		ODP_ERR("fd registration failure\n");
-		return -1;
-	}
-
-	return 0;
+	return res;
 }
 
 /*
@@ -130,37 +142,17 @@ int fdserver_register_fd(fdserver_context_t *context, uint64_t key,
  */
 int fdserver_deregister_fd(fdserver_context_t *context, uint64_t key)
 {
-	int s_sock; /* server socket */
 	int res;
-	int retval;
-	int fd;
+	int fd = -1;
 
 	FD_ODP_DBG("FD client deregister: pid=%d key=%" PRIu64 "\n",
 		   getpid(), key);
 
-	if (context == NULL)
-		return -1;
-
-	s_sock = get_socket();
-	if (s_sock < 0)
-		return -1;
-
-	res = fdserver_internal_send_msg(s_sock, FD_DEREGISTER_REQ, context,
-					  key, -1);
-	if (res < 0) {
+	res = send_command(FD_DEREGISTER_REQ, context, &key, &fd);
+	if (res != 0)
 		ODP_ERR("fd de-registration failure\n");
-		close(s_sock);
-		return -1;
-	}
 
-	res = fdserver_internal_recv_msg(s_sock, &retval, context, &key, &fd);
-	close(s_sock);
-	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
-		ODP_ERR("fd de-registration failure\n");
-		return -1;
-	}
-
-	return 0;
+	return res;
 }
 
 /*
@@ -170,47 +162,29 @@ int fdserver_deregister_fd(fdserver_context_t *context, uint64_t key)
  */
 int fdserver_lookup_fd(fdserver_context_t *context, uint64_t key)
 {
-	int s_sock; /* server socket */
 	int res;
-	int retval;
-	int fd;
+	int fd = -1;
 
-	if (context == NULL)
-		return -1;
-
-	s_sock = get_socket();
-	if (s_sock < 0)
-		return -1;
-
-	res = fdserver_internal_send_msg(s_sock, FD_LOOKUP_REQ, context,
-					  key, -1);
-	if (res < 0) {
-		ODP_ERR("fd lookup failure\n");
-		close(s_sock);
-		return -1;
-	}
-
-	res = fdserver_internal_recv_msg(s_sock, &retval, context, &key, &fd);
-	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
-		ODP_ERR("fd lookup failure\n");
-		close(s_sock);
-		return -1;
-	}
-
-	close(s_sock);
 	FD_ODP_DBG("FD client lookup: pid=%d, key=%" PRIu64 ", fd=%d\n",
 		   getpid(), key, fd);
+
+	res = send_command(FD_LOOKUP_REQ, context, &key, &fd);
+	if (res != 0) {
+		ODP_ERR("fd lookup failure\n");
+		return -1;
+	}
 
 	return fd;
 }
 
 int fdserver_new_context(fdserver_context_t **ctx)
 {
-	int s_sock; /* server socket */
-	int res, retval;
+	int res;
 	struct fdserver_context *context;
-	uint64_t key;
-	int fd;
+	uint64_t key = 0;
+	int fd = -1;
+
+	FD_ODP_DBG("FD New context pid=%d\n", getpid());
 
 	if (ctx == NULL)
 		return -1;
@@ -219,28 +193,12 @@ int fdserver_new_context(fdserver_context_t **ctx)
 	if (context == NULL)
 		return -1;
 
-	s_sock = get_socket();
-	if (s_sock < 0) {
-		free(context);
-		return -1;
-	}
-
 	context->index = 0;
 	context->token = 0;
-	res = fdserver_internal_send_msg(s_sock, FD_NEW_CONTEXT,
-					 context, 0, -1);
-	if (res < 0) {
+	res = send_command(FD_NEW_CONTEXT, context, &key, &fd);
+	if (res != 0) {
+		ODP_ERR("FD Failed to create context\n");
 		free(context);
-		close(s_sock);
-		ODP_ERR("Could not create a new context\n");
-		return -1;
-	}
-
-	res = fdserver_internal_recv_msg(s_sock, &retval, context, &key, &fd);
-	close(s_sock);
-	if ((res < 0) || (retval != FD_RETVAL_SUCCESS)) {
-		free(context);
-		ODP_ERR("fd lookup failure\n");
 		return -1;
 	}
 
@@ -251,31 +209,24 @@ int fdserver_new_context(fdserver_context_t **ctx)
 
 int fdserver_del_context(fdserver_context_t **ctx)
 {
-	int s_sock; /* server socket */
 	fdserver_context_t context;
-	int res, retval;
-	uint64_t key;
-	int fd;
+	int res;
+	uint64_t key = 0;
+	int retval = -1;
+
+	FD_ODP_DBG("FD Delete context pid=%d\n", getpid());
 
 	if (ctx == NULL || *ctx == NULL)
 		return -1;
 
-	s_sock = get_socket();
-	if (s_sock < 0)
+	res = send_command(FD_DEL_CONTEXT, *ctx, &key, &retval);
+	if (res != 0) {
+		ODP_ERR("FD Failed to remove context\n");
 		return -1;
-
-	res = fdserver_internal_send_msg(s_sock, FD_DEL_CONTEXT, *ctx, 0, -1);
-	if (res != 0)
-		goto exit_close;
-
-	res = fdserver_internal_recv_msg(s_sock, &retval, &context, &key, &fd);
-	if (res != 0 || retval != FD_RETVAL_SUCCESS)
-		goto exit_close;
+	}
 
 	free(*ctx);
 	*ctx = NULL;
 
-exit_close:
-	close(s_sock);
-	return res;
+	return 0;
 }
