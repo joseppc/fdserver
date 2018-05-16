@@ -118,7 +118,7 @@ static void handle_del_context(int sock, struct fdserver_context *ctx)
 
 	context_table[entry->index] = NULL;
 
-	for (uint32_t i = 0; i < entry->num_entries; i++)
+	for (int i = 0; i < entry->num_entries; i++)
 		close(entry->fd_table[i].fd);
 
 	free(entry);
@@ -333,7 +333,8 @@ static int _odp_fdserver_init_global(void)
 
 	/* bind to new named socket: */
 	local.sun_family = AF_UNIX;
-	strncpy(local.sun_path, sockpath, sizeof(local.sun_path));
+	memcpy(local.sun_path, sockpath, sizeof(local.sun_path));
+	local.sun_path[sizeof(local.sun_path) - 1] = '\0';
 	res = bind(sock, (struct sockaddr *)&local, sizeof(struct sockaddr_un));
 	if (res == -1) {
 		ODP_ERR("_odp_fdserver_init_global: %s\n", strerror(errno));
@@ -357,6 +358,8 @@ static int _odp_fdserver_init_global(void)
 
 int main(int argc, char *argv[])
 {
+	(void)argc;
+	(void)argv;
 	if (_odp_fdserver_init_global() != 0)
 		exit(EXIT_FAILURE);
 	exit(EXIT_SUCCESS);
