@@ -1,6 +1,6 @@
 #!/bin/bash
 
-../fdserver &>/dev/null &
+../src/fdserver &>/dev/null &
 
 # give time for the server to start
 sleep 1

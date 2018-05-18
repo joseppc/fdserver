@@ -133,6 +133,9 @@ int main(int argc, char *argv[])
 	struct Test *test;
 	int errors = 0;
 
+	(void)argc;
+	(void)argv;
+
 	test = &tests_suite[0];
 	while (test->run_test != NULL) {
 		int ret = test->run_test();
