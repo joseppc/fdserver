@@ -1,4 +1,8 @@
 AC_INIT([fdserver], [0.1])
+
+AC_CONFIG_AUX_DIR([build-aux])
+AC_REQUIRE_AUX_FILE([tap-driver.sh])
+
 AM_INIT_AUTOMAKE([-Wall -Werror foreign])
 
 AC_PROG_CC

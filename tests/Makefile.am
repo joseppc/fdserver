@@ -11,3 +11,7 @@ check_PROGRAMS = fdserver_api
 fdserver_api_SOURCES = fdserver_api.c
 fdserver_api_LDADD = $(top_srcdir)/src/.libs/libfdserver.a
 
+TEST_LOG_DRIVER = env AM_TAP_AWK='$(AWK)' $(SHELL) \
+                  $(top_srcdir)/build-aux/tap-driver.sh
+TESTS = run_tests.sh
+EXTRA_DIST = $(TESTS)
