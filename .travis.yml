@@ -1,0 +1,5 @@
+language: c
+script:
+    - autoreconf --install
+    - ./configure
+    - make check
