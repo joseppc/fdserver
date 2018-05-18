@@ -55,6 +55,9 @@
 #include <fdserver.h>
 #include <odp_adapt.h>
 #include <fdserver_internal.h>
+#include <fdserver_common.h>
+
+const char * const fdserver_path = FDSERVER_SOCKET_PATH;
 
 /* opens and returns a connected socket to the server */
 static int get_socket(void)

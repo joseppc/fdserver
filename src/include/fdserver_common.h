@@ -3,17 +3,15 @@
  *
  * SPDX-License-Identifier:     BSD-3-Clause
  */
+#ifndef FDSERVER_COMMON_H
+#define FDSERVER_COMMON_H
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 
-#include <fdserver.h>
-#include <odp_adapt.h>
-#include <fdserver_internal.h>
-
-const char * const fdserver_path = "/tmp/fdserver_socket";
+#define FDSERVER_SOCKET_PATH "/tmp/fdserver_socket"
 
 /*
  * Client and server function:
@@ -27,9 +25,9 @@ const char * const fdserver_path = "/tmp/fdserver_socket";
  * convert file descriptors over UNIX sockets
  * Return -1 on error, 0 on success.
  */
-int fdserver_internal_send_msg(int sock, int command,
-			       struct fdserver_context *context,
-			       uint64_t key, int fd_to_send)
+static int fdserver_internal_send_msg(int sock, int command,
+				      struct fdserver_context *context,
+				      uint64_t key, int fd_to_send)
 {
 	struct msghdr socket_message;
 	struct iovec io_vector[1]; /* one msg frgmt only */
@@ -68,10 +66,8 @@ int fdserver_internal_send_msg(int sock, int command,
 		*fd_location = fd_to_send;
 	}
 	res = sendmsg(sock, &socket_message, 0);
-	if (res < 0) {
-		ODP_ERR("send_fdserver_msg: %s\n", strerror(errno));
+	if (res < 0)
 		return -1;
-	}
 
 	return 0;
 }
@@ -88,9 +84,9 @@ int fdserver_internal_send_msg(int sock, int command,
  * convert file descriptors over UNIX sockets.
  * Return -1 on error, 0 on success.
  */
-int fdserver_internal_recv_msg(int sock, int *command,
-			       struct fdserver_context *context,
-			       uint64_t *key, int *recvd_fd)
+static int fdserver_internal_recv_msg(int sock, int *command,
+				      struct fdserver_context *context,
+				      uint64_t *key, int *recvd_fd)
 {
 	struct msghdr socket_message;
 	struct iovec io_vector[1]; /* one msg frgmt only */
@@ -113,10 +109,8 @@ int fdserver_internal_recv_msg(int sock, int *command,
 	socket_message.msg_controllen = CMSG_SPACE(sizeof(int));
 
 	/* receive the message */
-	if (recvmsg(sock, &socket_message, MSG_CMSG_CLOEXEC) < 0) {
-		ODP_ERR("recv_fdserver_msg: %s\n", strerror(errno));
+	if (recvmsg(sock, &socket_message, MSG_CMSG_CLOEXEC) < 0)
 		return -1;
-	}
 
 	*command = msg.command;
 	context->index = msg.index;
@@ -126,6 +120,8 @@ int fdserver_internal_recv_msg(int sock, int *command,
 	/* grab the converted file descriptor (if any) */
 	*recvd_fd = -1;
 
+	/* FIXME: we need to tread this properly, if the other end is the
+	 * client, it could wait forever for our reply... */
 	if ((socket_message.msg_flags & MSG_CTRUNC) == MSG_CTRUNC)
 		return 0;
 
@@ -143,4 +139,4 @@ int fdserver_internal_recv_msg(int sock, int *command,
 
 	return 0;
 }
-
+#endif

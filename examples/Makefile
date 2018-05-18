@@ -1,4 +1,4 @@
-COMMON_SRC=../src/fdserver_common.c ../src/fdserver_lib.c
+COMMON_SRC=../src/fdserver_lib.c
 INCLUDES=-I ../include -I ../src/include
 
 all: share_pipe_reader

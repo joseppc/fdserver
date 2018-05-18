@@ -23,6 +23,9 @@
 #include <fdserver.h>
 #include <odp_adapt.h>
 #include <fdserver_internal.h>
+#include <fdserver_common.h>
+
+const char * const fdserver_path = FDSERVER_SOCKET_PATH;
 
 #define FDSERVER_BACKLOG 5
 /* define the tables of file descriptors handled by this server: */
@@ -176,14 +179,18 @@ static int del_fdentry(struct fdcontext_entry *context, uint64_t key)
  */
 static int handle_request(int client_sock)
 {
-	int command;
+	int command = -1;
 	struct fdserver_context ctx;
 	struct fdcontext_entry *context;
-	uint64_t key;
-	int fd;
+	uint64_t key = 0;
+	int fd = -1;
 
 	/* get a client request: */
-	fdserver_internal_recv_msg(client_sock, &command, &ctx, &key, &fd);
+	if (fdserver_internal_recv_msg(client_sock, &command,
+				       &ctx, &key, &fd) != 0) {
+		ODP_ERR("fdserver: Failed to receive message\n");
+		return 0;
+	}
 	switch (command) {
 	case FD_REGISTER_REQ:
 		context = find_context(&ctx);

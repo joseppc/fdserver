@@ -49,12 +49,4 @@ typedef struct fd_server_msg {
 #define FD_RETVAL_SUCCESS	0
 #define FD_RETVAL_FAILURE	1
 
-int fdserver_internal_send_msg(int sock, int command,
-			       struct fdserver_context *context,
-			       uint64_t key, int fd_to_send);
-
-int fdserver_internal_recv_msg(int sock, int *command,
-			       struct fdserver_context *context,
-			       uint64_t *key, int *fd_to_send);
-
 #endif

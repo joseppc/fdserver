@@ -9,7 +9,7 @@ AM_CPP_FLAGS = -O2  -W -Wall -Werror -Wstrict-prototypes -Wmissing-prototypes \
 INCLUDES = -I include \
 	   -I src/include
 
-fdserver: src/fdserver.c src/fdserver_common.c
+fdserver: src/fdserver.c
 	gcc $(AM_CPP_FLAGS) $(INCLUDES) $^ -o $@
 
 clean:
