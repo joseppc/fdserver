@@ -5,11 +5,9 @@
  */
 #ifndef FDSERVER_COMMON_H
 #define FDSERVER_COMMON_H
-#include <stdint.h>
-#include <string.h>
-#include <errno.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/un.h>
 
 #define FDSERVER_SOCKET_PATH "/tmp/fdserver_socket"
 

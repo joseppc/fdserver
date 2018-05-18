@@ -43,14 +43,6 @@
 #include <stdio.h>
 #include <errno.h>
 #include <string.h>
-#include <signal.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <sys/un.h>
-#include <sys/mman.h>
-#include <sys/wait.h>
-#include <sys/prctl.h>
 
 #include <fdserver.h>
 #include <odp_adapt.h>
