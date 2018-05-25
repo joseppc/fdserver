@@ -45,7 +45,6 @@
 #include <string.h>
 
 #include <fdserver.h>
-#include <odp_adapt.h>
 #include <fdserver_internal.h>
 #include <fdserver_common.h>
 

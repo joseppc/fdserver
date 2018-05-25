@@ -12,11 +12,24 @@ extern const char * const fdserver_path;
 
 #define FD_ODP_DEBUG_PRINT 0
 
+#ifndef ODP_DBG
+#include <stdio.h>
+#define ODP_DBG(...) fprintf(stderr, ##__VA_ARGS__)
+#endif
+#ifndef ODP_ERR
+#include <stdio.h>
+#define ODP_ERR(...) fprintf(stderr, ##__VA_ARGS__)
+#endif
+
+#if FD_ODP_DEBUG_PRINT == 1
 #define FD_ODP_DBG(fmt, ...) \
 	do { \
 		if (FD_ODP_DEBUG_PRINT == 1) \
 			ODP_DBG(fmt, ##__VA_ARGS__);\
 	} while (0)
+#else
+#define FD_ODP_DBG(fmt, ...)
+#endif
 
 struct fdserver_context {
 	uint32_t index;
