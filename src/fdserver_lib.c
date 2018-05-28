@@ -48,24 +48,25 @@
 #include <fdserver_internal.h>
 #include <fdserver_common.h>
 
-const char * const fdserver_path = FDSERVER_SOCKET_PATH;
+struct sockaddr_un fdserver_socket = {
+	.sun_family = SOCK_STREAM,
+	.sun_path = FDSERVER_SOCKET_PATH
+};
 
 /* opens and returns a connected socket to the server */
 static int get_socket(void)
 {
-	const char *sockpath = fdserver_path;
 	int s_sock; /* server socket */
 	struct sockaddr_un remote;
 	int len;
 
 	s_sock = socket(AF_UNIX, SOCK_STREAM, 0);
 	if (s_sock == -1) {
-		ODP_ERR("cannot connect to server: %s\n", strerror(errno));
+		ODP_ERR("Cannot create socket: %s\n", strerror(errno));
 		return -1;
 	}
 
-	remote.sun_family = AF_UNIX;
-	strcpy(remote.sun_path, sockpath);
+	memcpy(&remote, &fdserver_socket, sizeof(struct sockaddr_un));
 	len = strlen(remote.sun_path) + sizeof(remote.sun_family);
 	while (connect(s_sock, (struct sockaddr *)&remote, len) == -1) {
 		if (errno == EINTR)
@@ -220,6 +221,17 @@ int fdserver_del_context(fdserver_context_t **ctx)
 
 	free(*ctx);
 	*ctx = NULL;
+
+	return 0;
+}
+
+int fdserver_init(const char *path)
+{
+	if (path != NULL) {
+		if (strlen(path) >= sizeof(fdserver_socket.sun_path))
+			return -1;
+		strcpy(fdserver_socket.sun_path, path);
+	}
 
 	return 0;
 }

@@ -20,8 +20,6 @@
 #include <fdserver_internal.h>
 #include <fdserver_common.h>
 
-const char * const fdserver_path = FDSERVER_SOCKET_PATH;
-
 #define FDSERVER_BACKLOG 5
 /* define the tables of file descriptors handled by this server: */
 #define FDSERVER_MAX_ENTRIES 256
@@ -341,7 +339,6 @@ static int _odp_fdserver_init_global(const char *sockpath)
 		close(sock);
 		return -1;
 	}
-	printf("Running server on socket: %s\n", local.sun_path);
 
 	/* listen for incoming conections: */
 	if (listen(sock, FDSERVER_BACKLOG) == -1) {
@@ -386,6 +383,7 @@ int main(int argc, char *argv[])
 			exit(EXIT_FAILURE);
 			break;
 		case '?':
+			/* fall-through */
 		default:
 			ODP_ERR("Unknown option %c\n", (char)opt);
 			break;

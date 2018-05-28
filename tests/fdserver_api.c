@@ -1,6 +1,8 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
+#include <getopt.h>
 
 #include <fdserver.h>
 
@@ -10,11 +12,17 @@
 #define KEY_WRITER 1
 
 static fdserver_context_t *context = NULL;
+static char *path = NULL;
 
 struct Test {
 	int (*run_test)(void);
 	const char *name;
 };
+
+static int do_init(void)
+{
+	return fdserver_init(path);
+}
 
 static int create_context(void)
 {
@@ -114,6 +122,7 @@ static int deregister_fds(void)
 }
 
 struct Test tests_suite[] = {
+	{ do_init, "Initialize library" },
 	{ create_context, "Create context" },
 	{ delete_context, "Delete context" },
 	{ create_context, "Create context Again" },
@@ -128,13 +137,10 @@ struct Test tests_suite[] = {
 	{ NULL, NULL }
 };
 
-int main(int argc, char *argv[])
+static int run_tests(void)
 {
 	struct Test *test;
 	int errors = 0;
-
-	(void)argc;
-	(void)argv;
 
 	test = &tests_suite[0];
 	while (test->run_test != NULL) {
@@ -150,4 +156,39 @@ int main(int argc, char *argv[])
 	}
 
 	return errors;
+}
+
+int main(int argc, char *argv[])
+{
+	static struct option long_options[] = {
+		{"path", required_argument, NULL, 'p'},
+		{0 , 0, 0, 0}
+	};
+	int opt;
+	int option_index = 0;
+
+	while ((opt = getopt_long(argc, argv,
+				  ":p:", long_options, &option_index)) != -1) {
+		switch (opt) {
+		case 'p':
+			path = strdup(optarg);
+			break;
+		case ':':
+			fprintf(stderr, "Missing argument for %s\n",
+				argv[optind - 1]);
+			exit(EXIT_FAILURE);
+			break;
+		case '?':
+			/* fall-through */
+		default:
+			fprintf(stderr, "Unknown option %c\n", (char)opt);
+			break;
+		}
+	}
+
+	opt = run_tests();
+
+	free(path);
+
+	return opt;
 }

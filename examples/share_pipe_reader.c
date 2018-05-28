@@ -43,6 +43,11 @@ int main(int argc, char *argv[])
 	fdserver_context_t *context;
 	pid_t pid;
 
+	if (fdserver_init(NULL) != 0) {
+		fprintf(stderr, "Could not initialize fdserver library\n");
+		exit(EXIT_FAILURE);
+	}
+
 	ret = fdserver_new_context(&context);
 	if (ret == -1) {
 		fprintf(stderr, "Could not create a new context\n");
