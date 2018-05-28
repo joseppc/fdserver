@@ -8,6 +8,7 @@
 #include <inttypes.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <getopt.h>
 #include <errno.h>
 #include <string.h>
 #include <sys/types.h>
@@ -313,9 +314,8 @@ again:
 	srand(seed);
 }
 
-static int _odp_fdserver_init_global(void)
+static int _odp_fdserver_init_global(const char *sockpath)
 {
-	const char *sockpath = fdserver_path;
 	int sock;
 	struct sockaddr_un local;
 	int res;
@@ -328,7 +328,6 @@ static int _odp_fdserver_init_global(void)
 		ODP_ERR("_odp_fdserver_init_global: %s\n", strerror(errno));
 		return -1;
 	}
-
 	/* remove previous named socket if it already exists: */
 	unlink(sockpath);
 
@@ -342,6 +341,7 @@ static int _odp_fdserver_init_global(void)
 		close(sock);
 		return -1;
 	}
+	printf("Running server on socket: %s\n", local.sun_path);
 
 	/* listen for incoming conections: */
 	if (listen(sock, FDSERVER_BACKLOG) == -1) {
@@ -359,9 +359,41 @@ static int _odp_fdserver_init_global(void)
 
 int main(int argc, char *argv[])
 {
-	(void)argc;
-	(void)argv;
-	if (_odp_fdserver_init_global() != 0)
+	static struct option long_options[] = {
+		{"path", required_argument, NULL, 'p'},
+		{0 , 0, 0, 0}
+	};
+	int opt;
+	int option_index = 0;
+	const char *path = FDSERVER_SOCKET_PATH;
+	struct sockaddr_un local;
+
+	while ((opt = getopt_long(argc, argv,
+				  ":p:", long_options, &option_index)) != -1) {
+		switch (opt) {
+		case 'p':
+			if (strlen(optarg) >= sizeof(local.sun_path)) {
+				ODP_ERR("Path given is too long\n");
+				exit(EXIT_FAILURE);
+			}
+			strcpy(local.sun_path, optarg);
+			/* FIXME: check path exists or create it */
+			path = local.sun_path;
+			break;
+		case ':':
+			ODP_ERR("Missing argument for %s\n",
+				argv[optind - 1]);
+			exit(EXIT_FAILURE);
+			break;
+		case '?':
+		default:
+			ODP_ERR("Unknown option %c\n", (char)opt);
+			break;
+		}
+	}
+
+	if (_odp_fdserver_init_global(path) != 0)
 		exit(EXIT_FAILURE);
+
 	exit(EXIT_SUCCESS);
 }
