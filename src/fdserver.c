@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/random.h>
+#include <signal.h>
 
 #include <fdserver.h>
 #include <fdserver_internal.h>
@@ -37,6 +38,12 @@ struct fdcontext_entry {
 	struct fdentry fd_table[0];
 };
 static struct fdcontext_entry *context_table[FDSERVER_MAX_CONTEXTS] = {NULL};
+
+static int do_quit = 0;
+static void hangup_handler(int signo __attribute__((unused)))
+{
+	do_quit = 1;
+}
 
 static void handle_new_context(int client_sock)
 {
@@ -277,11 +284,11 @@ static int handle_request(int client_sock)
  */
 static void wait_requests(int sock)
 {
-	int c_socket; /* client connection */
+	int c_socket = -1; /* client connection */
 	unsigned int addr_sz;
 	struct sockaddr_un remote;
 
-	for (;;) {
+	while (!do_quit) {
 		addr_sz = sizeof(remote);
 		c_socket = accept(sock, (struct sockaddr *)&remote, &addr_sz);
 		if (c_socket == -1) {
@@ -295,7 +302,20 @@ static void wait_requests(int sock)
 		handle_request(c_socket);
 		close(c_socket);
 	}
-	close(c_socket);
+
+	if (c_socket != -1)
+		close(c_socket);
+}
+
+static void setup_signal_handler(void)
+{
+	struct sigaction action;
+
+	memset(&action, 0, sizeof(action));
+	action.sa_handler = hangup_handler;
+	sigaction(SIGHUP, &action, NULL);
+	sigaction(SIGINT, &action, NULL);
+	sigaction(SIGTERM, &action, NULL);
 }
 
 static void prepare_seed(void)
@@ -318,6 +338,7 @@ static int _odp_fdserver_init_global(const char *sockpath)
 	struct sockaddr_un local;
 	int res;
 
+	setup_signal_handler();
 	prepare_seed();
 
 	/* create UNIX domain socket: */
@@ -350,6 +371,7 @@ static int _odp_fdserver_init_global(const char *sockpath)
 	/* wait for clients requests */
 	wait_requests(sock); /* Returns when server is stopped  */
 	close(sock);
+	unlink(sockpath);
 
 	return 0;
 }
