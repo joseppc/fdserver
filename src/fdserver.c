@@ -249,11 +249,11 @@ static int handle_request(int client_sock)
 		context = find_context(&ctx);
 		if (context != NULL) {
 			if (del_fdentry(context, key) == 0) {
-				ODP_DBG("deleted {ctx=%u, key=%" PRIu64 "}\n",
+				FD_ODP_DBG("deleted {ctx=%u, key=%"PRIu64"}\n",
 					ctx.index, key);
 				command = FD_RETVAL_SUCCESS;
 			} else {
-				ODP_DBG("Failed to delete deleted {ctx=%u, "
+				FD_ODP_DBG("Failed to delete deleted {ctx=%u, "
 					"key=%" PRIu64 "}\n",
 					ctx.index, key);
 			}
