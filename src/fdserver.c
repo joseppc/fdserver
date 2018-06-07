@@ -267,6 +267,7 @@ static int handle_request(int client_sock)
 					   &ctx, 0, -1);
 		break;
 	}
+
 	return 0;
 }
 
@@ -291,8 +292,7 @@ static void wait_requests(int sock)
 			return;
 		}
 
-		if (handle_request(c_socket))
-			break;
+		handle_request(c_socket);
 		close(c_socket);
 	}
 	close(c_socket);
