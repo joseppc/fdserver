@@ -15,6 +15,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <sys/random.h>
+#include <sys/prctl.h>
 #include <signal.h>
 
 #include <fdserver.h>
@@ -379,8 +380,9 @@ static int _odp_fdserver_init_global(const char *sockpath)
 int main(int argc, char *argv[])
 {
 	static struct option long_options[] = {
+		{"hangup", no_argument, NULL, 'H'},
 		{"path", required_argument, NULL, 'p'},
-		{0 , 0, 0, 0}
+		{0, 0, 0, 0}
 	};
 	int opt;
 	int option_index = 0;
@@ -388,8 +390,12 @@ int main(int argc, char *argv[])
 	struct sockaddr_un local;
 
 	while ((opt = getopt_long(argc, argv,
-				  ":p:", long_options, &option_index)) != -1) {
+				  ":Hp:", long_options, &option_index)) != -1) {
 		switch (opt) {
+		case 'H':
+			/* if parent dies, send SIGHUP to this process */
+			prctl(PR_SET_PDEATHSIG, SIGHUP);
+			break;
 		case 'p':
 			if (strlen(optarg) >= sizeof(local.sun_path)) {
 				ODP_ERR("Path given is too long\n");
