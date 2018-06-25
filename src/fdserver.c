@@ -15,7 +15,11 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <sys/un.h>
+#ifdef HAS_SYS_RANDOM
 #include <sys/random.h>
+#else
+#include <sys/time.h>
+#endif
 #include <sys/prctl.h>
 #include <signal.h>
 
@@ -323,14 +327,22 @@ static void setup_signal_handler(void)
 static void prepare_seed(void)
 {
 	unsigned int seed = 1001;
-	ssize_t num_bytes;
 
+#ifdef HAS_SYS_RANDOM
 again:
+	ssize_t num_bytes;
 	num_bytes = getrandom(&seed, sizeof(seed), 0);
 	if (num_bytes == -1) {
 		if (errno == EINTR)
 			goto again;
 	}
+#else
+	struct timeval timeval;
+
+	if (gettimeofday(&timeval, NULL))
+		seed = (unsigned int)(timeval.tv_sec);
+#endif
+
 	srand(seed);
 }
 
